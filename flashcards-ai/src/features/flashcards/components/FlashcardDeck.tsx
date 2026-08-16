@@ -1,7 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import { Flashcard } from "@/components/Flashcard";
+import { Flashcard } from "@/features/flashcards/components/Flashcard";
 import type { Flashcard as FlashcardType } from "@/types/flashcard";
 
 interface FlashcardDeckProps {

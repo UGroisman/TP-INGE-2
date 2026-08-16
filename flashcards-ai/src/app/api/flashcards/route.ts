@@ -1,10 +1,5 @@
+import { chatWithOllamaJson, OllamaRequestError } from "@/lib/ollama";
 import type { EducationLevel, Flashcard } from "@/types/flashcard";
-
-interface OllamaChatResponse {
-  message?: {
-    content?: string;
-  };
-}
 
 const validLevels: EducationLevel[] = ["primary", "secondary", "university"];
 
@@ -60,65 +55,21 @@ export async function POST(request: Request) {
     return Response.json({ error: validation.error }, { status: 400 });
   }
 
-  const ollamaBaseUrl =
-    process.env.OLLAMA_BASE_URL?.replace(/\/$/, "") ??
-    "http://localhost:11434";
-  const ollamaModel = process.env.OLLAMA_MODEL ?? "gemma3:1b";
-
   try {
-    const response = await fetch(`${ollamaBaseUrl}/api/chat`, {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-      },
-      body: JSON.stringify({
-        model: ollamaModel,
-        stream: false,
-        format: flashcardSchema,
-        options: {
-          temperature: 0.3,
-        },
-        messages: [
-          {
-            role: "system",
-            content:
-              "Sos un asistente educativo. Respondé solamente JSON válido en español.",
-          },
-          {
-            role: "user",
-            content: buildPrompt(validation.topic, validation.level),
-          },
-        ],
-      }),
-    });
-
-    if (!response.ok) {
-      const errorText = await response.text();
-      const modelError =
-        response.status === 404 ||
-        errorText.toLocaleLowerCase("es").includes("model");
-
-      return Response.json(
+    const parsedOutput = await chatWithOllamaJson({
+      schema: flashcardSchema,
+      messages: [
         {
-          error: modelError
-            ? "No pudimos usar el modelo configurado. Verificá OLLAMA_MODEL."
-            : "No pudimos conectarnos correctamente con Ollama.",
+          role: "system",
+          content:
+            "Sos un asistente educativo. Respondé solamente JSON válido en español.",
         },
-        { status: 502 },
-      );
-    }
-
-    const data: unknown = await response.json();
-    const content = getOllamaMessageContent(data);
-
-    if (!content) {
-      return Response.json(
-        { error: "El modelo local no devolvió contenido para las flashcards." },
-        { status: 502 },
-      );
-    }
-
-    const parsedOutput: unknown = JSON.parse(content);
+        {
+          role: "user",
+          content: buildPrompt(validation.topic, validation.level),
+        },
+      ],
+    });
     const cards = validateFlashcardsOutput(parsedOutput);
 
     if (!cards) {
@@ -130,19 +81,13 @@ export async function POST(request: Request) {
 
     return Response.json({ cards });
   } catch (error) {
-    if (error instanceof SyntaxError) {
-      return Response.json(
-        { error: "El modelo local no devolvió JSON válido." },
-        { status: 502 },
-      );
+    if (error instanceof OllamaRequestError) {
+      return Response.json({ error: error.message }, { status: error.status });
     }
 
     return Response.json(
-      {
-        error:
-          "No pudimos conectarnos con Ollama. Verificá que esté corriendo.",
-      },
-      { status: 502 },
+      { error: "No pudimos generar las flashcards. Intentá nuevamente." },
+      { status: 500 },
     );
   }
 }
@@ -161,18 +106,6 @@ function buildPrompt(topic: string, level: EducationLevel) {
     "Respondé únicamente con un objeto JSON que cumpla este esquema:",
     JSON.stringify(flashcardSchema),
   ].join("\n");
-}
-
-function getOllamaMessageContent(data: unknown) {
-  if (typeof data !== "object" || data === null || !("message" in data)) {
-    return null;
-  }
-
-  const response = data as OllamaChatResponse;
-
-  return typeof response.message?.content === "string"
-    ? response.message.content
-    : null;
 }
 
 function validateRequestBody(body: unknown):

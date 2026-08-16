@@ -2,9 +2,9 @@
 
 # This is NOT the Next.js you know
 
-This version has breaking changes — APIs, conventions, and file structure may all differ from your training data. Read the relevant guide in `node_modules/next/dist/docs/` (resolved from this file's directory; in monorepos the `next` package may not be visible from the repo root) before writing any code. Heed deprecation notices.
+This version has breaking changes - APIs, conventions, and file structure may all differ from your training data. Read the relevant guide in `node_modules/next/dist/docs/` before writing any code. Heed deprecation notices.
 
-This block is written and re-added by `next dev` — verify at `node_modules/next/dist/server/lib/generate-agent-files.js`. Removing it from a diff only re-creates the uncommitted change; committing it with your work keeps the tree clean.
+This block is written and re-added by `next dev` - verify at `node_modules/next/dist/server/lib/generate-agent-files.js`. Removing it from a diff only re-creates the uncommitted change; committing it with your work keeps the tree clean.
 
 <!-- END:nextjs-agent-rules -->
 
@@ -12,15 +12,14 @@ This block is written and re-added by `next dev` — verify at `node_modules/nex
 
 ## Project
 
-This is a small EdTech application for generating AI-powered flashcards.
+This is a small EdTech study application powered by a local AI model through Ollama.
 
-Main user story:
+The app has two main study modes:
 
-> As a student, I want to enter an educational topic and educational level and receive exactly 10 AI-generated flashcards so I can study the main concepts of that topic.
+1. Classic flashcards: a student enters a topic and level, receives exactly 10 question/answer flashcards, and studies them one at a time.
+2. Multiple choice practice: a student enters a topic, level, and question count, receives AI-generated questions with 4 options, selects an answer, and sees whether it was correct.
 
-The application should remain approximately the size of one large user story.
-
-Do not expand the scope without explicit instructions.
+The project may grow beyond the original MVP, but it should remain simple enough for an academic project.
 
 ---
 
@@ -33,7 +32,7 @@ Use:
 * React
 * TypeScript
 * Tailwind CSS
-* OpenAI API
+* Ollama local API
 * Native `fetch`
 
 Do not add a separate backend.
@@ -48,142 +47,108 @@ Do not use Express.
 
 ---
 
-## MVP Scope
+## AI Provider
 
-The application must allow the user to:
+Use Ollama through its local HTTP API.
 
-1. Enter an educational topic.
-2. Select an educational level:
-
-   * Primary
-   * Secondary
-   * University
-3. Generate exactly 10 flashcards.
-4. See one flashcard at a time.
-5. Initially see only the question.
-6. Reveal the answer.
-7. Navigate with Previous and Next.
-8. See the current position, for example `3 / 10`.
-9. See a loading state while generating.
-10. See a useful error message if generation fails.
-11. Retry after an error.
-
----
-
-## Out of Scope
-
-Do not implement unless explicitly requested:
-
-* authentication
-* users
-* database
-* saved decks
-* history
-* quizzes
-* exams
-* PDF upload
-* spaced repetition
-* gamification
-* analytics
-* payments
-* social features
-* Redux
-* Zustand
-* Axios
-* Express
-* Prisma
-* Firebase
-* Supabase
-
-Generated flashcards may be lost when the page is refreshed.
-
-That is acceptable for the MVP.
-
----
-
-## Development Order
-
-Develop incrementally.
-
-### Phase 1
-
-Create the UI using mock flashcards.
-
-Do not integrate OpenAI yet.
-
-Implement:
-
-* `TopicForm`
-* `Flashcard`
-* `FlashcardDeck`
-
-Verify navigation and answer reveal using mock data.
-
-### Phase 2
-
-Create:
+Default configuration:
 
 ```text
-POST /api/flashcards
+OLLAMA_BASE_URL=http://localhost:11434
+OLLAMA_MODEL=gemma3:1b
 ```
 
-Initially return mock flashcards from the endpoint.
+These variables are optional because the app should use those defaults when they are missing.
 
-Connect the frontend to the endpoint using `fetch`.
+Do not require API keys for local Ollama.
 
-### Phase 3
+Never call Ollama directly from the browser. The browser calls a Next.js Route Handler, and the Route Handler calls Ollama.
 
-Integrate OpenAI server-side.
+---
 
-Replace the mock response with AI-generated flashcards.
+## Feature Scope
 
-### Phase 4
+### Flashcards
 
-Add:
+The flashcards feature must allow the user to enter a topic and level, generate exactly 10 cards, reveal answers, navigate one card at a time, see position, loading, errors, and retry.
 
-* loading
-* errors
-* validation
-* responsive styling
-* basic accessibility
+### Multiple Choice
+
+The multiple choice feature must allow the user to enter a topic, level, and count (`5`, `10`, or `15`), generate questions with exactly 4 options, pick one option, see correct/incorrect feedback, navigate one question at a time, and retry after errors.
+
+---
+
+## Navigation
+
+The app uses routes and a shared sidebar.
+
+Routes:
+
+```text
+/
+/flashcards
+/multiple-choice
+```
+
+`/` should redirect to `/flashcards`.
+
+The sidebar must let the user choose between:
+
+```text
+Flashcards
+Opcion multiple
+```
 
 ---
 
 ## Suggested Structure
 
+Keep each feature separated:
+
 ```text
 src/
 ├── app/
 │   ├── api/
-│   │   └── flashcards/
+│   │   ├── flashcards/
+│   │   │   └── route.ts
+│   │   └── multiple-choice/
 │   │       └── route.ts
+│   ├── flashcards/
+│   │   └── page.tsx
+│   ├── multiple-choice/
+│   │   └── page.tsx
 │   ├── page.tsx
 │   ├── layout.tsx
 │   └── globals.css
 │
 ├── components/
-│   ├── TopicForm.tsx
-│   ├── Flashcard.tsx
-│   └── FlashcardDeck.tsx
+│   └── AppSidebar.tsx
 │
-├── types/
-│   └── flashcard.ts
+├── features/
+│   ├── flashcards/
+│   │   ├── components/
+│   │   └── services/
+│   └── multiple-choice/
+│       ├── components/
+│       ├── services/
+│       └── types.ts
 │
-└── data/
-    └── mockFlashcards.ts
+├── lib/
+│   └── ollama.ts
+│
+└── types/
+    └── flashcard.ts
 ```
 
-Do not create additional architecture unless necessary.
+Do not create extra architecture unless it removes real duplication.
 
 ---
 
 ## Domain Types
 
-Use TypeScript.
+Use TypeScript and avoid `any`.
 
-Avoid `any`.
-
-Main type:
+Flashcard:
 
 ```typescript
 export interface Flashcard {
@@ -201,15 +166,27 @@ export type EducationLevel =
   | "university";
 ```
 
+Multiple choice question:
+
+```typescript
+export interface MultipleChoiceQuestion {
+  question: string;
+  options: string[];
+  correctOptionIndex: number;
+}
+```
+
+Question count:
+
+```typescript
+export type QuestionCount = 5 | 10 | 15;
+```
+
 ---
 
-## API Contract
+## API Contracts
 
-Endpoint:
-
-```http
-POST /api/flashcards
-```
+### POST /api/flashcards
 
 Request:
 
@@ -235,6 +212,34 @@ Response:
 
 A successful response must contain exactly 10 cards.
 
+### POST /api/multiple-choice
+
+Request:
+
+```json
+{
+  "topic": "Fotosintesis",
+  "level": "primary",
+  "count": 10
+}
+```
+
+Response:
+
+```json
+{
+  "questions": [
+    {
+      "question": "...",
+      "options": ["...", "...", "...", "..."],
+      "correctOptionIndex": 0
+    }
+  ]
+}
+```
+
+A successful response must contain exactly `count` questions.
+
 ---
 
 ## Validation
@@ -246,7 +251,7 @@ Topic:
 * must be a string
 * trim whitespace
 * cannot be empty
-* recommended length: 3–100 characters
+* recommended length: 3-100 characters
 
 Level must be:
 
@@ -256,57 +261,23 @@ secondary
 university
 ```
 
-Do not call OpenAI if validation fails.
-
----
-
-## OpenAI
-
-Use the official OpenAI SDK.
-
-OpenAI must only be called from server-side code.
-
-Never call OpenAI directly from a Client Component.
-
-Environment variable:
+Multiple choice count must be:
 
 ```text
-OPENAI_API_KEY
+5
+10
+15
 ```
 
-Store it in:
+Do not call Ollama if validation fails.
 
-```text
-.env.local
-```
-
-Never use:
-
-```text
-NEXT_PUBLIC_OPENAI_API_KEY
-```
-
-Never commit the real API key.
-
-Provide:
-
-```text
-.env.example
-```
-
-with:
-
-```text
-OPENAI_API_KEY=
-```
+Treat AI output as external and untrusted. Validate it before returning it to the client.
 
 ---
 
 ## AI Output
 
-Generate exactly 10 flashcards.
-
-Requirements:
+Generated content requirements:
 
 * Spanish language
 * appropriate for selected educational level
@@ -315,11 +286,9 @@ Requirements:
 * focus on understanding
 * stay on the requested topic
 
-Prefer structured JSON output.
+Prefer structured JSON output through Ollama's `format` option.
 
 Do not parse manually formatted prose using regex.
-
-Treat AI output as external/untrusted data and validate it.
 
 ---
 
@@ -329,27 +298,7 @@ Simple React state is enough.
 
 Do not introduce global state management.
 
-Typical state:
-
-```typescript
-const [flashcards, setFlashcards] = useState<Flashcard[]>([]);
-const [loading, setLoading] = useState(false);
-const [error, setError] = useState<string | null>(null);
-```
-
-`FlashcardDeck` may maintain:
-
-```typescript
-const [currentIndex, setCurrentIndex] = useState(0);
-```
-
-`Flashcard` may maintain:
-
-```typescript
-const [showAnswer, setShowAnswer] = useState(false);
-```
-
-Reset answer visibility when changing cards.
+Do not introduce Redux or Zustand.
 
 ---
 
@@ -369,6 +318,7 @@ Generar flashcards
 Mostrar respuesta
 Anterior
 Siguiente
+Opcion multiple
 ```
 
 ---
@@ -377,21 +327,19 @@ Siguiente
 
 Never expose secrets to the browser.
 
-Never log API keys.
+Do not log API keys or sensitive configuration.
 
 Validate user input.
 
 Validate AI output.
 
-Do not put the API key in frontend code.
+Do not put local model calls in Client Components.
 
 ---
 
 ## Dependencies
 
 Keep dependencies minimal.
-
-Before installing a package, determine whether the same task can reasonably be solved using the existing stack.
 
 Prefer:
 
@@ -414,8 +362,6 @@ This is an academic project and the repository owner must be able to explain the
 
 Avoid unnecessary abstractions.
 
-Do not over-engineer.
-
 Do not rewrite unrelated files.
 
 Keep changes focused.
@@ -437,11 +383,9 @@ Work incrementally:
 
 ```text
 small change
-→ verify
-→ next change
+-> verify
+-> next change
 ```
-
-Do not attempt a large rewrite unless explicitly requested.
 
 Do not add features that were not requested.
 
@@ -471,41 +415,34 @@ If verification cannot be performed, state that clearly.
 
 ## Definition of Done
 
-The MVP is complete when:
+The expanded app is complete when:
 
-* the app runs locally
-* the user can enter a topic
-* the user can choose a level
+* `/` redirects to `/flashcards`
+* `/flashcards` works with 10 AI flashcards from Ollama
+* `/multiple-choice` works with 5, 10, or 15 AI questions from Ollama
+* the sidebar navigates between features
 * invalid input is rejected
-* generation shows loading feedback
-* the backend securely calls OpenAI
-* exactly 10 flashcards are returned
-* one card is displayed at a time
-* answers begin hidden
-* answers can be revealed
-* Previous and Next work correctly
-* the card counter works
-* errors are handled
+* loading and errors are handled
 * retry works
-* no secret reaches the browser
+* no model call runs in the browser
 * TypeScript/lint/build succeed
-* no unnecessary features or dependencies were added
+* no unnecessary dependencies were added
 
 ---
 
 ## Core Rule
 
-When unsure about a decision, prefer the simplest solution that supports this flow:
+When unsure, prefer the simplest solution that supports these flows:
 
 ```text
-Topic + educational level
-        ↓
-Generate
-        ↓
-10 AI flashcards
-        ↓
-Study one at a time
+Topic + level
+    -> Flashcards
+    -> Study one at a time
 ```
 
-Anything outside that flow should only be added when explicitly requested.
-
+```text
+Topic + level + count
+    -> Multiple choice questions
+    -> Pick an option
+    -> See correct/incorrect feedback
+```
