@@ -2,9 +2,9 @@
 
 # This is NOT the Next.js you know
 
-This version has breaking changes - APIs, conventions, and file structure may all differ from your training data. Read the relevant guide in `node_modules/next/dist/docs/` before writing any code. Heed deprecation notices.
+This version has breaking changes — APIs, conventions, and file structure may all differ from your training data. Read the relevant guide in `node_modules/next/dist/docs/` (resolved from this file's directory; in monorepos the `next` package may not be visible from the repo root) before writing any code. Heed deprecation notices.
 
-This block is written and re-added by `next dev` - verify at `node_modules/next/dist/server/lib/generate-agent-files.js`. Removing it from a diff only re-creates the uncommitted change; committing it with your work keeps the tree clean.
+This block is written and re-added by `next dev` — verify at `node_modules/next/dist/server/lib/generate-agent-files.js`. Removing it from a diff only re-creates the uncommitted change; committing it with your work keeps the tree clean.
 
 <!-- END:nextjs-agent-rules -->
 
@@ -14,10 +14,11 @@ This block is written and re-added by `next dev` - verify at `node_modules/next/
 
 This is a small EdTech study application powered by a local AI model through Ollama.
 
-The app has two main study modes:
+The app has three main sections:
 
-1. Classic flashcards: a student enters a topic and level, receives exactly 10 question/answer flashcards, and studies them one at a time.
-2. Multiple choice practice: a student enters a topic, level, and question count, receives AI-generated questions with 4 options, selects an answer, and sees whether it was correct.
+1. Inicio: a landing/dashboard with a welcome message, mock study stats, and shortcuts to the study modes.
+2. Flashcards: a student enters a topic and level, receives exactly 10 question/answer flashcards, and studies them one at a time.
+3. Opción múltiple: a student enters a topic, level, and question count, receives AI-generated questions with 4 options, selects an answer, and sees whether it was correct.
 
 The project may grow beyond the original MVP, but it should remain simple enough for an academic project.
 
@@ -64,9 +65,17 @@ Do not require API keys for local Ollama.
 
 Never call Ollama directly from the browser. The browser calls a Next.js Route Handler, and the Route Handler calls Ollama.
 
+Ollama is used only for study content generation. Dashboard stats are mock data for now.
+
 ---
 
 ## Feature Scope
+
+### Inicio
+
+The landing page at `/` must welcome the user, show fixed mock stats, include an info box for future metrics, and provide buttons to `/flashcards` and `/multiple-choice`.
+
+Stats are not persisted yet. Do not use localStorage, cookies, a database, or a new backend for stats unless explicitly requested.
 
 ### Flashcards
 
@@ -90,13 +99,14 @@ Routes:
 /multiple-choice
 ```
 
-`/` should redirect to `/flashcards`.
+`/` is the landing/dashboard page. It must not redirect to another route.
 
 The sidebar must let the user choose between:
 
 ```text
+Inicio
 Flashcards
-Opcion multiple
+Opción múltiple
 ```
 
 ---
@@ -107,37 +117,38 @@ Keep each feature separated:
 
 ```text
 src/
-├── app/
-│   ├── api/
-│   │   ├── flashcards/
-│   │   │   └── route.ts
-│   │   └── multiple-choice/
-│   │       └── route.ts
-│   ├── flashcards/
-│   │   └── page.tsx
-│   ├── multiple-choice/
-│   │   └── page.tsx
-│   ├── page.tsx
-│   ├── layout.tsx
-│   └── globals.css
-│
-├── components/
-│   └── AppSidebar.tsx
-│
-├── features/
-│   ├── flashcards/
-│   │   ├── components/
-│   │   └── services/
-│   └── multiple-choice/
-│       ├── components/
-│       ├── services/
-│       └── types.ts
-│
-├── lib/
-│   └── ollama.ts
-│
-└── types/
-    └── flashcard.ts
+|-- app/
+|   |-- (study)/
+|   |   |-- page.tsx
+|   |   |-- layout.tsx
+|   |   |-- flashcards/page.tsx
+|   |   `-- multiple-choice/page.tsx
+|   |-- api/
+|   |   |-- flashcards/route.ts
+|   |   `-- multiple-choice/route.ts
+|   |-- layout.tsx
+|   `-- globals.css
+|
+|-- components/
+|   `-- AppSidebar.tsx
+|
+|-- features/
+|   |-- landing/
+|   |   |-- components/
+|   |   `-- types.ts
+|   |-- study/
+|   |   `-- types.ts
+|   |-- flashcards/
+|   |   |-- components/
+|   |   |-- services/
+|   |   `-- types.ts
+|   `-- multiple-choice/
+|       |-- components/
+|       |-- services/
+|       `-- types.ts
+|
+`-- lib/
+    `-- ollama.ts
 ```
 
 Do not create extra architecture unless it removes real duplication.
@@ -148,39 +159,31 @@ Do not create extra architecture unless it removes real duplication.
 
 Use TypeScript and avoid `any`.
 
-Flashcard:
+Shared study types live in:
 
-```typescript
-export interface Flashcard {
-  question: string;
-  answer: string;
-}
+```text
+src/features/study/types.ts
 ```
 
-Educational level:
+Flashcard types live in:
 
-```typescript
-export type EducationLevel =
-  | "primary"
-  | "secondary"
-  | "university";
+```text
+src/features/flashcards/types.ts
 ```
 
-Multiple choice question:
+Multiple choice types live in:
 
-```typescript
-export interface MultipleChoiceQuestion {
-  question: string;
-  options: string[];
-  correctOptionIndex: number;
-}
+```text
+src/features/multiple-choice/types.ts
 ```
 
-Question count:
+Landing types live in:
 
-```typescript
-export type QuestionCount = 5 | 10 | 15;
+```text
+src/features/landing/types.ts
 ```
+
+Do not recreate domain types in route handlers or components when a feature type already exists.
 
 ---
 
@@ -218,7 +221,7 @@ Request:
 
 ```json
 {
-  "topic": "Fotosintesis",
+  "topic": "Fotosíntesis",
   "level": "primary",
   "count": 10
 }
@@ -300,6 +303,8 @@ Do not introduce global state management.
 
 Do not introduce Redux or Zustand.
 
+Stats on the landing are fixed mock constants until persistence is explicitly requested.
+
 ---
 
 ## UI Language
@@ -311,6 +316,8 @@ Code identifiers should generally remain in English.
 Examples:
 
 ```text
+Bienvenido
+Inicio
 ¿Qué querés estudiar?
 Tema
 Nivel educativo
@@ -318,7 +325,7 @@ Generar flashcards
 Mostrar respuesta
 Anterior
 Siguiente
-Opcion multiple
+Opción múltiple
 ```
 
 ---
@@ -417,10 +424,10 @@ If verification cannot be performed, state that clearly.
 
 The expanded app is complete when:
 
-* `/` redirects to `/flashcards`
+* `/` shows the landing/dashboard with mock stats and navigation buttons
 * `/flashcards` works with 10 AI flashcards from Ollama
 * `/multiple-choice` works with 5, 10, or 15 AI questions from Ollama
-* the sidebar navigates between features
+* the sidebar navigates between Inicio, Flashcards, and Opción múltiple
 * invalid input is rejected
 * loading and errors are handled
 * retry works
@@ -433,6 +440,12 @@ The expanded app is complete when:
 ## Core Rule
 
 When unsure, prefer the simplest solution that supports these flows:
+
+```text
+Open app
+    -> See mock study stats
+    -> Choose a study mode
+```
 
 ```text
 Topic + level
