@@ -1,8 +1,14 @@
 "use client";
 
 import { FormEvent, useState } from "react";
-import type { EducationLevel } from "@/types/flashcard";
-import type { QuestionCount } from "@/features/multiple-choice/types";
+import {
+  questionCounts,
+  type QuestionCount,
+} from "@/features/multiple-choice/types";
+import {
+  educationLevelOptions,
+  type EducationLevel,
+} from "@/features/study/types";
 
 interface MultipleChoiceFormProps {
   loading: boolean;
@@ -12,14 +18,6 @@ interface MultipleChoiceFormProps {
     count: QuestionCount,
   ) => void;
 }
-
-const levelOptions: Array<{ value: EducationLevel; label: string }> = [
-  { value: "primary", label: "Primario" },
-  { value: "secondary", label: "Secundario" },
-  { value: "university", label: "Universitario" },
-];
-
-const countOptions: QuestionCount[] = [5, 10, 15];
 
 function validateTopic(topic: string) {
   const trimmedTopic = topic.trim();
@@ -104,7 +102,7 @@ export function MultipleChoiceForm({
             disabled={loading}
             className="mt-2 h-11 w-full rounded-md border border-zinc-300 bg-white px-3 text-zinc-950 outline-none transition focus:border-teal-700 focus:ring-2 focus:ring-teal-100 disabled:bg-zinc-100"
           >
-            {levelOptions.map((option) => (
+            {educationLevelOptions.map((option) => (
               <option key={option.value} value={option.value}>
                 {option.label}
               </option>
@@ -129,7 +127,7 @@ export function MultipleChoiceForm({
             disabled={loading}
             className="mt-2 h-11 w-full rounded-md border border-zinc-300 bg-white px-3 text-zinc-950 outline-none transition focus:border-teal-700 focus:ring-2 focus:ring-teal-100 disabled:bg-zinc-100"
           >
-            {countOptions.map((option) => (
+            {questionCounts.map((option) => (
               <option key={option} value={option}>
                 {option}
               </option>

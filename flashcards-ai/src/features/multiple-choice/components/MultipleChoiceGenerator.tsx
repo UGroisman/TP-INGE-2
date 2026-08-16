@@ -4,11 +4,11 @@ import { useState } from "react";
 import { MultipleChoiceDeck } from "@/features/multiple-choice/components/MultipleChoiceDeck";
 import { MultipleChoiceForm } from "@/features/multiple-choice/components/MultipleChoiceForm";
 import { generateMultipleChoiceQuestions } from "@/features/multiple-choice/services/multipleChoice";
-import type { EducationLevel } from "@/types/flashcard";
 import type {
   MultipleChoiceQuestion,
   QuestionCount,
 } from "@/features/multiple-choice/types";
+import type { EducationLevel } from "@/features/study/types";
 
 export function MultipleChoiceGenerator() {
   const [questions, setQuestions] = useState<MultipleChoiceQuestion[]>([]);

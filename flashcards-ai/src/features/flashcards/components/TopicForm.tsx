@@ -1,18 +1,15 @@
 "use client";
 
 import { FormEvent, useState } from "react";
-import type { EducationLevel } from "@/types/flashcard";
+import {
+  educationLevelOptions,
+  type EducationLevel,
+} from "@/features/study/types";
 
 interface TopicFormProps {
   loading: boolean;
   onGenerate: (topic: string, level: EducationLevel) => void;
 }
-
-const levelOptions: Array<{ value: EducationLevel; label: string }> = [
-  { value: "primary", label: "Primario" },
-  { value: "secondary", label: "Secundario" },
-  { value: "university", label: "Universitario" },
-];
 
 function validateTopic(topic: string) {
   const trimmedTopic = topic.trim();
@@ -93,7 +90,7 @@ export function TopicForm({ loading, onGenerate }: TopicFormProps) {
             disabled={loading}
             className="mt-2 h-11 w-full rounded-md border border-zinc-300 bg-white px-3 text-zinc-950 outline-none transition focus:border-teal-700 focus:ring-2 focus:ring-teal-100 disabled:bg-zinc-100"
           >
-            {levelOptions.map((option) => (
+            {educationLevelOptions.map((option) => (
               <option key={option.value} value={option.value}>
                 {option.label}
               </option>

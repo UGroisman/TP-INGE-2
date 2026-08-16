@@ -1,12 +1,9 @@
-import type { EducationLevel } from "@/types/flashcard";
 import type {
   MultipleChoiceQuestion,
+  MultipleChoiceResponse,
   QuestionCount,
 } from "@/features/multiple-choice/types";
-
-interface MultipleChoiceResponse {
-  questions: MultipleChoiceQuestion[];
-}
+import type { EducationLevel } from "@/features/study/types";
 
 export async function generateMultipleChoiceQuestions(
   topic: string,

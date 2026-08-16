@@ -2,7 +2,7 @@
 
 import { useState } from "react";
 import { Flashcard } from "@/features/flashcards/components/Flashcard";
-import type { Flashcard as FlashcardType } from "@/types/flashcard";
+import type { Flashcard as FlashcardType } from "@/features/flashcards/types";
 
 interface FlashcardDeckProps {
   flashcards: FlashcardType[];

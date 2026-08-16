@@ -1,8 +1,5 @@
-import type { EducationLevel, Flashcard } from "@/types/flashcard";
-
-interface FlashcardsResponse {
-  cards: Flashcard[];
-}
+import type { Flashcard, FlashcardsResponse } from "@/features/flashcards/types";
+import type { EducationLevel } from "@/features/study/types";
 
 export async function generateFlashcards(
   topic: string,

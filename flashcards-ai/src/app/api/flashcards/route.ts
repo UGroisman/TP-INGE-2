@@ -1,13 +1,10 @@
 import { chatWithOllamaJson, OllamaRequestError } from "@/lib/ollama";
-import type { EducationLevel, Flashcard } from "@/types/flashcard";
-
-const validLevels: EducationLevel[] = ["primary", "secondary", "university"];
-
-const levelLabels: Record<EducationLevel, string> = {
-  primary: "Primario",
-  secondary: "Secundario",
-  university: "Universitario",
-};
+import type { Flashcard } from "@/features/flashcards/types";
+import {
+  educationLevelLabels,
+  isEducationLevel,
+  type EducationLevel,
+} from "@/features/study/types";
 
 const flashcardSchema = {
   type: "object",
@@ -96,7 +93,7 @@ function buildPrompt(topic: string, level: EducationLevel) {
   return [
     "Generá exactamente 10 flashcards educativas.",
     `Tema: ${topic}`,
-    `Nivel educativo: ${levelLabels[level]}`,
+    `Nivel educativo: ${educationLevelLabels[level]}`,
     "Idioma: español.",
     "Cada flashcard debe tener question y answer.",
     "Las preguntas deben evaluar comprensión, no memorización mecánica.",
@@ -137,12 +134,6 @@ function validateRequestBody(body: unknown):
   }
 
   return { ok: true, topic, level: body.level };
-}
-
-function isEducationLevel(value: unknown): value is EducationLevel {
-  return (
-    typeof value === "string" && validLevels.includes(value as EducationLevel)
-  );
 }
 
 function validateFlashcardsOutput(output: unknown): Flashcard[] | null {

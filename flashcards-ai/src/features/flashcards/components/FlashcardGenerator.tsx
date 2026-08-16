@@ -4,7 +4,8 @@ import { useState } from "react";
 import { FlashcardDeck } from "@/features/flashcards/components/FlashcardDeck";
 import { TopicForm } from "@/features/flashcards/components/TopicForm";
 import { generateFlashcards } from "@/features/flashcards/services/flashcards";
-import type { EducationLevel, Flashcard } from "@/types/flashcard";
+import type { Flashcard } from "@/features/flashcards/types";
+import type { EducationLevel } from "@/features/study/types";
 
 export function FlashcardGenerator() {
   const [flashcards, setFlashcards] = useState<Flashcard[]>([]);

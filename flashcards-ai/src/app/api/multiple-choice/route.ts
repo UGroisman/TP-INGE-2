@@ -1,18 +1,14 @@
 import { chatWithOllamaJson, OllamaRequestError } from "@/lib/ollama";
-import type { EducationLevel } from "@/types/flashcard";
-import type {
-  MultipleChoiceQuestion,
-  QuestionCount,
+import {
+  isQuestionCount,
+  type MultipleChoiceQuestion,
+  type QuestionCount,
 } from "@/features/multiple-choice/types";
-
-const validLevels: EducationLevel[] = ["primary", "secondary", "university"];
-const validCounts: QuestionCount[] = [5, 10, 15];
-
-const levelLabels: Record<EducationLevel, string> = {
-  primary: "Primario",
-  secondary: "Secundario",
-  university: "Universitario",
-};
+import {
+  educationLevelLabels,
+  isEducationLevel,
+  type EducationLevel,
+} from "@/features/study/types";
 
 const multipleChoiceSchema = {
   type: "object",
@@ -134,7 +130,7 @@ function buildPrompt(
   return [
     `Generá exactamente ${count} preguntas educativas de opción múltiple.`,
     `Tema: ${topic}`,
-    `Nivel educativo: ${levelLabels[level]}`,
+    `Nivel educativo: ${educationLevelLabels[level]}`,
     "Idioma: español.",
     "Cada pregunta debe tener question, options y correctOptionIndex.",
     "Cada options debe tener exactamente 4 respuestas posibles.",
@@ -184,16 +180,6 @@ function validateRequestBody(body: unknown):
   }
 
   return { ok: true, topic, level: body.level, count: body.count };
-}
-
-function isEducationLevel(value: unknown): value is EducationLevel {
-  return (
-    typeof value === "string" && validLevels.includes(value as EducationLevel)
-  );
-}
-
-function isQuestionCount(value: unknown): value is QuestionCount {
-  return typeof value === "number" && validCounts.includes(value as QuestionCount);
 }
 
 function validateQuestionsOutput(
