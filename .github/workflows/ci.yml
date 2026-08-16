@@ -4,27 +4,35 @@ on:
   push:
     branches:
       - main
-
   pull_request:
     branches:
       - main
+  workflow_dispatch:
 
 jobs:
   build:
     runs-on: ubuntu-latest
 
+    defaults:
+      run:
+        working-directory: flashcards-ai
+
     steps:
       - name: Checkout repository
-        uses: actions/checkout@v6
+        uses: actions/checkout@v4
 
       - name: Setup Node.js
-        uses: actions/setup-node@v7
+        uses: actions/setup-node@v4
         with:
           node-version: 22
           cache: npm
+          cache-dependency-path: flashcards-ai/package-lock.json
 
       - name: Install dependencies
         run: npm ci
+
+      - name: Lint project
+        run: npm run lint
 
       - name: Build project
         run: npm run build
