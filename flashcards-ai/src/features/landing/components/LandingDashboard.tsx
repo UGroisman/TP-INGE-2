@@ -40,6 +40,11 @@ const actions: LandingAction[] = [
     label: "Practicar opción múltiple",
     description: "Respondé preguntas con 4 opciones.",
   },
+  {
+    href: "/study-sets",
+    label: "Ver study sets",
+    description: "Revisá el contenido que guardaste.",
+  },
 ];
 
 const futureStats = [
@@ -135,7 +140,7 @@ export function LandingDashboard({ userEmail }: LandingDashboardProps) {
           <h2 className="text-xl font-semibold text-zinc-950">
             Elegí cómo querés practicar
           </h2>
-          <div className="mt-5 grid gap-3 sm:grid-cols-2">
+          <div className="mt-5 grid gap-3 sm:grid-cols-3">
             {actions.map((action, index) => (
               <Link
                 key={action.href}

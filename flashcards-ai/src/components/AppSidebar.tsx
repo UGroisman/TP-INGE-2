@@ -16,6 +16,10 @@ const navigationItems = [
     href: "/multiple-choice",
     label: "Opción múltiple",
   },
+  {
+    href: "/study-sets",
+    label: "Study sets",
+  },
 ];
 
 export function AppSidebar() {
@@ -36,7 +40,11 @@ export function AppSidebar() {
           className="flex gap-2 lg:mt-8 lg:flex-col"
         >
           {navigationItems.map((item) => {
-            const isActive = pathname === item.href;
+            const isActive =
+              item.href === "/"
+                ? pathname === item.href
+                : pathname === item.href ||
+                  pathname.startsWith(`${item.href}/`);
 
             return (
               <Link

@@ -3,12 +3,17 @@
 import { useState } from "react";
 import { Flashcard } from "@/features/flashcards/components/Flashcard";
 import type { Flashcard as FlashcardType } from "@/features/flashcards/types";
+import type { ReactNode } from "react";
 
 interface FlashcardDeckProps {
   flashcards: FlashcardType[];
+  renderSaveAction?: (flashcard: FlashcardType, index: number) => ReactNode;
 }
 
-export function FlashcardDeck({ flashcards }: FlashcardDeckProps) {
+export function FlashcardDeck({
+  flashcards,
+  renderSaveAction,
+}: FlashcardDeckProps) {
   const [currentIndex, setCurrentIndex] = useState(0);
 
   if (flashcards.length === 0) {
@@ -33,6 +38,8 @@ export function FlashcardDeck({ flashcards }: FlashcardDeckProps) {
         question={currentCard.question}
         answer={currentCard.answer}
       />
+
+      {renderSaveAction ? renderSaveAction(currentCard, currentIndex) : null}
 
       <div className="mt-4 grid grid-cols-2 gap-3">
         <button

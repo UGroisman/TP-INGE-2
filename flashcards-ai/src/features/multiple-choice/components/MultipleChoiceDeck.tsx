@@ -2,12 +2,20 @@
 
 import { useState } from "react";
 import type { MultipleChoiceQuestion } from "@/features/multiple-choice/types";
+import type { ReactNode } from "react";
 
 interface MultipleChoiceDeckProps {
   questions: MultipleChoiceQuestion[];
+  renderSaveAction?: (
+    question: MultipleChoiceQuestion,
+    index: number,
+  ) => ReactNode;
 }
 
-export function MultipleChoiceDeck({ questions }: MultipleChoiceDeckProps) {
+export function MultipleChoiceDeck({
+  questions,
+  renderSaveAction,
+}: MultipleChoiceDeckProps) {
   const [currentIndex, setCurrentIndex] = useState(0);
   const [selectedAnswers, setSelectedAnswers] = useState<
     Record<number, number>
@@ -94,6 +102,10 @@ export function MultipleChoiceDeck({ questions }: MultipleChoiceDeckProps) {
           </p>
         ) : null}
       </article>
+
+      {renderSaveAction
+        ? renderSaveAction(currentQuestion, currentIndex)
+        : null}
 
       <div className="mt-4 grid grid-cols-2 gap-3">
         <button

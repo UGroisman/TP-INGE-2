@@ -16,39 +16,19 @@ This is a small EdTech study application powered by a local AI model through Oll
 
 The app has these main sections:
 
-1. Inicio: a landing/dashboard with a welcome message, user session state, future Supabase-backed stats, and shortcuts to study modes.
+1. Inicio: a landing/dashboard with welcome text, user session state, future Supabase-backed stats, and shortcuts to study modes.
 2. Flashcards: a student enters a topic and level, receives exactly 10 question/answer flashcards, and studies them one at a time.
 3. Opción múltiple: a student enters a topic, level, and question count, receives AI-generated questions with 4 options, selects an answer, and sees whether it was correct.
-4. Autenticación: users can register, log in, and log out with Supabase Auth.
+4. Study sets: authenticated users can create study sets and save selected generated items into them.
+5. Autenticación: users can register, log in, and log out with Supabase Auth.
 
 The project may grow beyond the original MVP, but it should remain simple enough for an academic project.
 
----
-
 ## Stack
 
-Use:
+Use Next.js, App Router, React, TypeScript, Tailwind CSS, Ollama local API, Supabase Auth/database, and native `fetch`.
 
-* Next.js
-* App Router
-* React
-* TypeScript
-* Tailwind CSS
-* Ollama local API
-* Supabase Auth and database
-* Native `fetch`
-
-Do not add a separate backend.
-
-Use Next.js Route Handlers under:
-
-```text
-src/app/api/
-```
-
-Do not use Express.
-
----
+Do not add a separate backend. Do not use Express. Use Next.js Route Handlers under `src/app/api/`.
 
 ## AI Provider
 
@@ -63,22 +43,13 @@ OLLAMA_MODEL=gemma3:1b
 
 These variables are optional because the app should use those defaults when they are missing.
 
-Do not require API keys for local Ollama.
-
 Never call Ollama directly from the browser. The browser calls a Next.js Route Handler, and the Route Handler calls Ollama.
 
 Ollama is used only for study content generation. It is not used for authentication, persistence, or dashboard stats.
 
----
-
 ## Supabase
 
-Use Supabase for:
-
-* authentication
-* user sessions
-* database persistence
-* future study stats
+Use Supabase for authentication, user sessions, database persistence, and future study stats.
 
 Required environment variables:
 
@@ -89,56 +60,118 @@ NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY
 
 These are public Supabase browser credentials, but `.env.local` must still remain uncommitted. `.env.example` should contain only placeholders.
 
-Use helpers under:
+Use helpers under `src/lib/supabase/`.
 
-```text
-src/lib/supabase/
-```
-
-Use:
-
-* `createBrowserClient` from Client Components
-* `createServerClient` from Server Components and server-side code
-* `src/proxy.ts` for session refresh, because Next.js 16 renamed Middleware to Proxy
+Use `src/proxy.ts` for session refresh, because Next.js 16 renamed Middleware to Proxy.
 
 Do not keep duplicate Supabase helpers in `src/utils/supabase`.
 
----
+## Supabase Migrations
+
+Use Supabase CLI as a local dev dependency, executed with Windows commands:
+
+```bash
+npx.cmd supabase ...
+```
+
+Use this workflow:
+
+* `npx.cmd supabase db pull` is only for importing changes that were made directly in the Supabase Dashboard or remote database.
+* If a schema change starts in this repo, create or edit a migration locally and apply it to Supabase with `db push`.
+* Before applying remote changes, always run:
+
+```bash
+npx.cmd supabase db push --dry-run
+```
+
+Then apply:
+
+```bash
+npx.cmd supabase db push
+```
+
+Do not run `db pull` after every code change. Pull only when the remote database changed outside the repo.
+
+Do not commit tokens, database passwords, `.env.local`, or connection strings.
+
+## Supabase Tables
+
+Use the existing tables:
+
+```text
+study_sets
+  id uuid primary key
+  topic text
+  user_id uuid references auth.users.id
+  created_at timestamptz
+
+flashcards
+  id uuid primary key
+  study_set_id uuid references study_sets.id
+  question text
+  answer text
+
+multiple_choice_questions
+  id uuid primary key
+  study_set_id uuid references study_sets.id
+  question text
+
+multiple_choice_options
+  id uuid primary key
+  question_id uuid references multiple_choice_questions.id
+  answer text
+  is_correct boolean
+```
+
+`study_sets.topic` is the display name of the study set in the UI.
+
+`multiple_choice_options.answer` stores the option text. UI/domain types may expose that value as `text`, but database reads and writes must use the real column name `answer`.
+
+Do not propose schema changes unless the user asks for functionality that requires them. Real answer history, accuracy, attempts, time spent, and exact ordering would require additional columns or tables.
+
+Rely on existing RLS policies so users can only access their own data.
 
 ## Feature Scope
 
 ### Inicio
 
-The landing page at `/` must welcome the user, show session state, include an info box for future metrics, and provide buttons to `/flashcards` and `/multiple-choice`.
+The landing page at `/` must welcome the user, show session state, include an info box for future metrics, and provide buttons to `/flashcards`, `/multiple-choice`, and `/study-sets`.
 
-Stats should come from Supabase once the database schema exists. Until then, use a pending/empty state rather than fake production data.
+Stats should come from Supabase once the database model supports them. Until then, use a pending/empty state rather than fake production data.
 
 ### Auth
 
-The auth feature must allow:
-
-* register with email/password at `/register`
-* login with email/password at `/login`
-* logout from the landing
-* session display on the landing
+The auth feature must allow register, login, logout, and session display.
 
 Auth pages should not use the study sidebar.
 
-Study routes stay public for now. Require login only when saving or reading user-specific persisted data.
+Study generation routes stay public. Require login only when saving or reading user-specific persisted data.
+
+### Study Sets
+
+Authenticated users can create study sets, list their own study sets, open a detail page, see saved flashcards, and see saved multiple choice questions with the correct option marked.
+
+Generated content is not saved automatically.
+
+Saving is individual:
+
+* saving one flashcard saves only that flashcard
+* saving one multiple choice question saves only that question and its four options
+* if the user wants to save all generated items, they save them one by one
 
 ### Flashcards
 
 The flashcards feature must allow the user to enter a topic and level, generate exactly 10 cards, reveal answers, navigate one card at a time, see position, loading, errors, and retry.
 
+After generation, the currently visible card can be saved into a selected study set.
+
 ### Multiple Choice
 
 The multiple choice feature must allow the user to enter a topic, level, and count (`5`, `10`, or `15`), generate questions with exactly 4 options, pick one option, see correct/incorrect feedback, navigate one question at a time, and retry after errors.
 
----
+After generation, the currently visible question can be saved into a selected study set.
 
 ## Navigation
-
-The app uses routes and a shared sidebar for study routes.
 
 Routes:
 
@@ -146,23 +179,15 @@ Routes:
 /
 /flashcards
 /multiple-choice
+/study-sets
+/study-sets/[id]
 /login
 /register
 ```
 
-`/` is the landing/dashboard page. It must not redirect to another route.
-
-The study sidebar must let the user choose between:
-
-```text
-Inicio
-Flashcards
-Opción múltiple
-```
+The study sidebar must let the user choose between Inicio, Flashcards, Opción múltiple, and Study sets.
 
 Auth routes (`/login`, `/register`) should render without the sidebar.
-
----
 
 ## Suggested Structure
 
@@ -172,177 +197,83 @@ Keep each feature separated:
 src/
 |-- app/
 |   |-- (auth)/
-|   |   |-- login/page.tsx
-|   |   `-- register/page.tsx
 |   |-- (study)/
-|   |   |-- page.tsx
-|   |   |-- layout.tsx
-|   |   |-- flashcards/page.tsx
-|   |   `-- multiple-choice/page.tsx
+|   |   |-- flashcards/
+|   |   |-- multiple-choice/
+|   |   `-- study-sets/
 |   |-- api/
-|   |   |-- flashcards/route.ts
-|   |   `-- multiple-choice/route.ts
-|   |-- layout.tsx
-|   `-- globals.css
+|   |   |-- flashcards/
+|   |   |-- multiple-choice/
+|   |   `-- study-sets/
+|   `-- layout.tsx
 |
 |-- components/
 |   `-- AppSidebar.tsx
 |
 |-- features/
 |   |-- auth/
-|   |   `-- components/
 |   |-- landing/
-|   |   |-- components/
-|   |   `-- types.ts
 |   |-- study/
-|   |   `-- types.ts
+|   |-- study-sets/
 |   |-- flashcards/
-|   |   |-- components/
-|   |   |-- services/
-|   |   `-- types.ts
 |   `-- multiple-choice/
-|       |-- components/
-|       |-- services/
-|       `-- types.ts
 |
 |-- lib/
 |   |-- ollama.ts
 |   `-- supabase/
-|       |-- client.ts
-|       |-- server.ts
-|       `-- middleware.ts
 |
 `-- proxy.ts
 ```
 
 Do not create extra architecture unless it removes real duplication.
 
----
-
 ## Domain Types
 
 Use TypeScript and avoid `any`.
 
-Shared study types live in:
+Domain types live in:
 
 ```text
 src/features/study/types.ts
-```
-
-Flashcard types live in:
-
-```text
 src/features/flashcards/types.ts
-```
-
-Multiple choice types live in:
-
-```text
 src/features/multiple-choice/types.ts
-```
-
-Landing types live in:
-
-```text
+src/features/study-sets/types.ts
 src/features/landing/types.ts
 ```
 
 Do not recreate domain types in route handlers or components when a feature type already exists.
 
----
-
 ## API Contracts
 
-### POST /api/flashcards
+`POST /api/flashcards` generates exactly 10 flashcards from Ollama. It does not save them.
 
-Request:
+`POST /api/multiple-choice` generates exactly `count` multiple choice questions from Ollama. It does not save them.
 
-```json
-{
-  "topic": "Teorema de Bayes",
-  "level": "university"
-}
-```
+`GET /api/study-sets` returns the authenticated user's study sets.
 
-Response:
+`POST /api/study-sets` creates a study set for the authenticated user.
 
-```json
-{
-  "cards": [
-    {
-      "question": "...",
-      "answer": "..."
-    }
-  ]
-}
-```
+`GET /api/study-sets/[id]` returns one study set with its saved flashcards and multiple choice questions.
 
-A successful response must contain exactly 10 cards.
+`POST /api/study-sets/[id]/flashcards` saves one flashcard into one study set.
 
-### POST /api/multiple-choice
-
-Request:
-
-```json
-{
-  "topic": "Fotosíntesis",
-  "level": "primary",
-  "count": 10
-}
-```
-
-Response:
-
-```json
-{
-  "questions": [
-    {
-      "question": "...",
-      "options": ["...", "...", "...", "..."],
-      "correctOptionIndex": 0
-    }
-  ]
-}
-```
-
-A successful response must contain exactly `count` questions.
-
----
+`POST /api/study-sets/[id]/multiple-choice` saves one multiple choice question and its four options into one study set.
 
 ## Validation
 
 Validate input both client-side and server-side.
 
-Topic:
+Topic and study set names must be strings, trimmed, non-empty, and 3-100 characters.
 
-* must be a string
-* trim whitespace
-* cannot be empty
-* recommended length: 3-100 characters
+Level must be `primary`, `secondary`, or `university`.
 
-Level must be:
+Multiple choice count must be `5`, `10`, or `15`.
 
-```text
-primary
-secondary
-university
-```
+Do not call Ollama if generation validation fails.
 
-Multiple choice count must be:
+Treat AI output as external and untrusted. Validate it before returning it to the client or saving it.
 
-```text
-5
-10
-15
-```
-
-Do not call Ollama if validation fails.
-
-Treat AI output as external and untrusted. Validate it before returning it to the client.
-
-When persistence is added, validate Supabase writes server-side and rely on RLS for user ownership.
-
----
+Validate Supabase writes server-side and rely on RLS for user ownership.
 
 ## AI Output
 
@@ -359,25 +290,15 @@ Prefer structured JSON output through Ollama's `format` option.
 
 Do not parse manually formatted prose using regex.
 
----
-
 ## Client State
 
-Simple React state is enough.
-
-Do not introduce global state management.
-
-Do not introduce Redux or Zustand.
+Simple React state is enough. Do not introduce Redux or Zustand.
 
 Auth state should come from Supabase session helpers, not from custom global stores.
 
----
-
 ## UI Language
 
-User-facing text should be in Spanish.
-
-Code identifiers should generally remain in English.
+User-facing text should be in Spanish. Code identifiers should generally remain in English.
 
 Examples:
 
@@ -392,12 +313,12 @@ Mostrar respuesta
 Anterior
 Siguiente
 Opción múltiple
+Study sets
+Guardar
 Iniciar sesión
 Registrarse
 Cerrar sesión
 ```
-
----
 
 ## Security
 
@@ -405,17 +326,13 @@ Never expose secrets to the browser.
 
 Do not log API keys or sensitive configuration.
 
-Validate user input.
-
-Validate AI output.
+Validate user input and AI output.
 
 Do not put local model calls in Client Components.
 
 Do not use Supabase service-role keys in this frontend app.
 
 Use Supabase RLS for user-specific tables.
-
----
 
 ## Dependencies
 
@@ -428,35 +345,15 @@ Allowed persistence/auth dependencies:
 @supabase/ssr
 ```
 
-Prefer:
-
-```text
-fetch
-useState
-Next.js Route Handlers
-Tailwind
-Supabase helpers
-```
+Prefer `fetch`, `useState`, Next.js Route Handlers, Tailwind, and Supabase helpers.
 
 Do not add libraries only for convenience.
 
----
-
 ## Coding Style
 
-Prefer simple, readable code.
+Prefer simple, readable code. This is an academic project and the repository owner must be able to explain the implementation.
 
-This is an academic project and the repository owner must be able to explain the implementation.
-
-Avoid unnecessary abstractions.
-
-Do not rewrite unrelated files.
-
-Keep changes focused.
-
-Follow existing project conventions when they are reasonable.
-
----
+Avoid unnecessary abstractions. Do not rewrite unrelated files. Keep changes focused.
 
 ## Agent Workflow
 
@@ -467,17 +364,7 @@ Before changing code:
 3. Understand the existing implementation.
 4. Modify only the files necessary for the requested task.
 
-Work incrementally:
-
-```text
-small change
--> verify
--> next change
-```
-
 Do not add features that were not requested.
-
----
 
 ## Verification
 
@@ -485,21 +372,10 @@ After meaningful changes, run when appropriate:
 
 ```bash
 npm run lint
-```
-
-and:
-
-```bash
 npm run build
 ```
 
-If tests exist, run them as well.
-
-Do not claim that something works if it was not verified.
-
 If verification cannot be performed, state that clearly.
-
----
 
 ## Definition of Done
 
@@ -511,7 +387,10 @@ The expanded app is complete when:
 * logout clears the session
 * `/flashcards` works with 10 AI flashcards from Ollama
 * `/multiple-choice` works with 5, 10, or 15 AI questions from Ollama
-* the sidebar navigates between Inicio, Flashcards, and Opción múltiple
+* `/study-sets` lists and creates authenticated user study sets
+* `/study-sets/[id]` shows saved flashcards and multiple choice questions
+* generated items are saved one by one, never automatically as a batch
+* the sidebar navigates between Inicio, Flashcards, Opción múltiple, and Study sets
 * invalid input is rejected
 * loading and errors are handled
 * retry works
@@ -520,29 +399,15 @@ The expanded app is complete when:
 * TypeScript/lint/build succeed
 * no unnecessary dependencies were added
 
----
-
 ## Core Rule
 
 When unsure, prefer the simplest solution that supports these flows:
 
 ```text
-Open app
-    -> See session state
-    -> Choose a study mode
-```
-
-```text
-Register / login
-    -> Supabase Auth session
-    -> auth.uid()
-    -> future RLS-backed persistence
-```
-
-```text
 Topic + level
     -> Flashcards
     -> Study one at a time
+    -> Save selected cards one by one
 ```
 
 ```text
@@ -550,4 +415,12 @@ Topic + level + count
     -> Multiple choice questions
     -> Pick an option
     -> See correct/incorrect feedback
+    -> Save selected questions one by one
+```
+
+```text
+Study sets
+    -> Create a set
+    -> Open detail
+    -> Review saved flashcards and multiple choice questions
 ```

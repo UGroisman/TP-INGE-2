@@ -4,6 +4,7 @@ import { useState } from "react";
 import { MultipleChoiceDeck } from "@/features/multiple-choice/components/MultipleChoiceDeck";
 import { MultipleChoiceForm } from "@/features/multiple-choice/components/MultipleChoiceForm";
 import { generateMultipleChoiceQuestions } from "@/features/multiple-choice/services/multipleChoice";
+import { SaveGeneratedItemPanel } from "@/features/study-sets/components/SaveGeneratedItemPanel";
 import type {
   MultipleChoiceQuestion,
   QuestionCount,
@@ -95,7 +96,17 @@ export function MultipleChoiceGenerator() {
       ) : null}
 
       {!loading && !error ? (
-        <MultipleChoiceDeck key={deckVersion} questions={questions} />
+        <MultipleChoiceDeck
+          key={deckVersion}
+          questions={questions}
+          renderSaveAction={(question, index) => (
+            <SaveGeneratedItemPanel
+              kind="multiple-choice"
+              item={question}
+              itemKey={`${deckVersion}-${index}`}
+            />
+          )}
+        />
       ) : null}
     </>
   );

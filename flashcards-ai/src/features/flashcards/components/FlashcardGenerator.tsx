@@ -4,6 +4,7 @@ import { useState } from "react";
 import { FlashcardDeck } from "@/features/flashcards/components/FlashcardDeck";
 import { TopicForm } from "@/features/flashcards/components/TopicForm";
 import { generateFlashcards } from "@/features/flashcards/services/flashcards";
+import { SaveGeneratedItemPanel } from "@/features/study-sets/components/SaveGeneratedItemPanel";
 import type { Flashcard } from "@/features/flashcards/types";
 import type { EducationLevel } from "@/features/study/types";
 
@@ -79,7 +80,17 @@ export function FlashcardGenerator() {
       ) : null}
 
       {!loading && !error ? (
-        <FlashcardDeck key={deckVersion} flashcards={flashcards} />
+        <FlashcardDeck
+          key={deckVersion}
+          flashcards={flashcards}
+          renderSaveAction={(flashcard, index) => (
+            <SaveGeneratedItemPanel
+              kind="flashcard"
+              item={flashcard}
+              itemKey={`${deckVersion}-${index}`}
+            />
+          )}
+        />
       ) : null}
     </>
   );
