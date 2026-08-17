@@ -1,26 +1,31 @@
 import Link from "next/link";
+import { LogoutButton } from "@/features/auth/components/LogoutButton";
 import type { LandingAction, LandingStat } from "@/features/landing/types";
+
+interface LandingDashboardProps {
+  userEmail?: string | null;
+}
 
 const stats: LandingStat[] = [
   {
     label: "Correctas",
-    value: "24",
-    detail: "respuestas correctas en opción múltiple",
+    value: "-",
+    detail: "se calcularán desde respuestas guardadas",
   },
   {
     label: "Flashcards",
-    value: "80",
-    detail: "tarjetas creadas para estudiar",
+    value: "-",
+    detail: "se calcularán desde sets persistidos",
   },
   {
     label: "Sesiones",
-    value: "6",
-    detail: "sesiones de estudio completadas",
+    value: "-",
+    detail: "se calcularán desde actividad real",
   },
   {
     label: "Temas",
-    value: "4",
-    detail: "temas practicados recientemente",
+    value: "-",
+    detail: "se calcularán desde tu historial",
   },
 ];
 
@@ -44,20 +49,65 @@ const futureStats = [
   "Historial de sesiones",
 ];
 
-export function LandingDashboard() {
+export function LandingDashboard({ userEmail }: LandingDashboardProps) {
+  const isLoggedIn = Boolean(userEmail);
+
   return (
     <div className="w-full">
-      <section className="max-w-3xl">
-        <p className="text-sm font-semibold uppercase tracking-wide text-teal-700">
-          Inicio
-        </p>
-        <h1 className="mt-2 text-4xl font-bold tracking-normal text-zinc-950">
-          Bienvenido a tu espacio de estudio
-        </h1>
-        <p className="mt-3 max-w-2xl text-base leading-7 text-zinc-600">
-          Repasá con flashcards, practicá con opción múltiple y seguí tu avance
-          desde un solo lugar.
-        </p>
+      <section className="grid gap-4 lg:grid-cols-[1fr_auto] lg:items-start">
+        <div className="max-w-3xl">
+          <p className="text-sm font-semibold uppercase tracking-wide text-teal-700">
+            Inicio
+          </p>
+          <h1 className="mt-2 text-4xl font-bold tracking-normal text-zinc-950">
+            Bienvenido a tu espacio de estudio
+          </h1>
+          <p className="mt-3 max-w-2xl text-base leading-7 text-zinc-600">
+            Repasá con flashcards, practicá con opción múltiple y prepará tu
+            avance para guardarlo con Supabase.
+          </p>
+        </div>
+
+        <div className="rounded-lg border border-zinc-200 bg-white p-4 shadow-sm">
+          {isLoggedIn ? (
+            <div className="grid gap-3">
+              <div>
+                <p className="text-sm font-semibold text-zinc-950">
+                  Sesión activa
+                </p>
+                <p className="mt-1 text-sm text-zinc-600">
+                  Logueado como: {userEmail}
+                </p>
+              </div>
+              <LogoutButton />
+            </div>
+          ) : (
+            <div className="grid gap-3">
+              <div>
+                <p className="text-sm font-semibold text-zinc-950">
+                  Sin sesión
+                </p>
+                <p className="mt-1 text-sm text-zinc-600">
+                  Iniciá sesión para preparar el guardado de tus datos.
+                </p>
+              </div>
+              <div className="flex flex-wrap gap-2">
+                <Link
+                  href="/login"
+                  className="rounded-md bg-teal-700 px-4 py-2 text-sm font-semibold text-white transition hover:bg-teal-800 focus:outline-none focus:ring-2 focus:ring-teal-600 focus:ring-offset-2"
+                >
+                  Iniciar sesión
+                </Link>
+                <Link
+                  href="/register"
+                  className="rounded-md border border-zinc-300 bg-white px-4 py-2 text-sm font-semibold text-zinc-900 transition hover:bg-zinc-100 focus:outline-none focus:ring-2 focus:ring-teal-600 focus:ring-offset-2"
+                >
+                  Registrarse
+                </Link>
+              </div>
+            </div>
+          )}
+        </div>
       </section>
 
       <section
@@ -114,7 +164,7 @@ export function LandingDashboard() {
             Próximas stats
           </p>
           <h2 className="mt-2 text-xl font-semibold">
-            Espacio reservado para métricas reales
+            Espacio reservado para métricas persistidas
           </h2>
           <ul className="mt-4 space-y-2 text-sm leading-6">
             {futureStats.map((item) => (

@@ -12,13 +12,14 @@ This block is written and re-added by `next dev` — verify at `node_modules/nex
 
 ## Project
 
-This is a small EdTech study application powered by a local AI model through Ollama.
+This is a small EdTech study application powered by a local AI model through Ollama, with Supabase for authentication, database storage, and persistence.
 
-The app has three main sections:
+The app has these main sections:
 
-1. Inicio: a landing/dashboard with a welcome message, mock study stats, and shortcuts to the study modes.
+1. Inicio: a landing/dashboard with a welcome message, user session state, future Supabase-backed stats, and shortcuts to study modes.
 2. Flashcards: a student enters a topic and level, receives exactly 10 question/answer flashcards, and studies them one at a time.
 3. Opción múltiple: a student enters a topic, level, and question count, receives AI-generated questions with 4 options, selects an answer, and sees whether it was correct.
+4. Autenticación: users can register, log in, and log out with Supabase Auth.
 
 The project may grow beyond the original MVP, but it should remain simple enough for an academic project.
 
@@ -34,6 +35,7 @@ Use:
 * TypeScript
 * Tailwind CSS
 * Ollama local API
+* Supabase Auth and database
 * Native `fetch`
 
 Do not add a separate backend.
@@ -65,7 +67,41 @@ Do not require API keys for local Ollama.
 
 Never call Ollama directly from the browser. The browser calls a Next.js Route Handler, and the Route Handler calls Ollama.
 
-Ollama is used only for study content generation. Dashboard stats are mock data for now.
+Ollama is used only for study content generation. It is not used for authentication, persistence, or dashboard stats.
+
+---
+
+## Supabase
+
+Use Supabase for:
+
+* authentication
+* user sessions
+* database persistence
+* future study stats
+
+Required environment variables:
+
+```text
+NEXT_PUBLIC_SUPABASE_URL
+NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY
+```
+
+These are public Supabase browser credentials, but `.env.local` must still remain uncommitted. `.env.example` should contain only placeholders.
+
+Use helpers under:
+
+```text
+src/lib/supabase/
+```
+
+Use:
+
+* `createBrowserClient` from Client Components
+* `createServerClient` from Server Components and server-side code
+* `src/proxy.ts` for session refresh, because Next.js 16 renamed Middleware to Proxy
+
+Do not keep duplicate Supabase helpers in `src/utils/supabase`.
 
 ---
 
@@ -73,9 +109,22 @@ Ollama is used only for study content generation. Dashboard stats are mock data 
 
 ### Inicio
 
-The landing page at `/` must welcome the user, show fixed mock stats, include an info box for future metrics, and provide buttons to `/flashcards` and `/multiple-choice`.
+The landing page at `/` must welcome the user, show session state, include an info box for future metrics, and provide buttons to `/flashcards` and `/multiple-choice`.
 
-Stats are not persisted yet. Do not use localStorage, cookies, a database, or a new backend for stats unless explicitly requested.
+Stats should come from Supabase once the database schema exists. Until then, use a pending/empty state rather than fake production data.
+
+### Auth
+
+The auth feature must allow:
+
+* register with email/password at `/register`
+* login with email/password at `/login`
+* logout from the landing
+* session display on the landing
+
+Auth pages should not use the study sidebar.
+
+Study routes stay public for now. Require login only when saving or reading user-specific persisted data.
 
 ### Flashcards
 
@@ -89,7 +138,7 @@ The multiple choice feature must allow the user to enter a topic, level, and cou
 
 ## Navigation
 
-The app uses routes and a shared sidebar.
+The app uses routes and a shared sidebar for study routes.
 
 Routes:
 
@@ -97,17 +146,21 @@ Routes:
 /
 /flashcards
 /multiple-choice
+/login
+/register
 ```
 
 `/` is the landing/dashboard page. It must not redirect to another route.
 
-The sidebar must let the user choose between:
+The study sidebar must let the user choose between:
 
 ```text
 Inicio
 Flashcards
 Opción múltiple
 ```
+
+Auth routes (`/login`, `/register`) should render without the sidebar.
 
 ---
 
@@ -118,6 +171,9 @@ Keep each feature separated:
 ```text
 src/
 |-- app/
+|   |-- (auth)/
+|   |   |-- login/page.tsx
+|   |   `-- register/page.tsx
 |   |-- (study)/
 |   |   |-- page.tsx
 |   |   |-- layout.tsx
@@ -133,6 +189,8 @@ src/
 |   `-- AppSidebar.tsx
 |
 |-- features/
+|   |-- auth/
+|   |   `-- components/
 |   |-- landing/
 |   |   |-- components/
 |   |   `-- types.ts
@@ -147,8 +205,14 @@ src/
 |       |-- services/
 |       `-- types.ts
 |
-`-- lib/
-    `-- ollama.ts
+|-- lib/
+|   |-- ollama.ts
+|   `-- supabase/
+|       |-- client.ts
+|       |-- server.ts
+|       `-- middleware.ts
+|
+`-- proxy.ts
 ```
 
 Do not create extra architecture unless it removes real duplication.
@@ -276,6 +340,8 @@ Do not call Ollama if validation fails.
 
 Treat AI output as external and untrusted. Validate it before returning it to the client.
 
+When persistence is added, validate Supabase writes server-side and rely on RLS for user ownership.
+
 ---
 
 ## AI Output
@@ -303,7 +369,7 @@ Do not introduce global state management.
 
 Do not introduce Redux or Zustand.
 
-Stats on the landing are fixed mock constants until persistence is explicitly requested.
+Auth state should come from Supabase session helpers, not from custom global stores.
 
 ---
 
@@ -326,6 +392,9 @@ Mostrar respuesta
 Anterior
 Siguiente
 Opción múltiple
+Iniciar sesión
+Registrarse
+Cerrar sesión
 ```
 
 ---
@@ -342,11 +411,22 @@ Validate AI output.
 
 Do not put local model calls in Client Components.
 
+Do not use Supabase service-role keys in this frontend app.
+
+Use Supabase RLS for user-specific tables.
+
 ---
 
 ## Dependencies
 
 Keep dependencies minimal.
+
+Allowed persistence/auth dependencies:
+
+```text
+@supabase/supabase-js
+@supabase/ssr
+```
 
 Prefer:
 
@@ -355,6 +435,7 @@ fetch
 useState
 Next.js Route Handlers
 Tailwind
+Supabase helpers
 ```
 
 Do not add libraries only for convenience.
@@ -424,7 +505,10 @@ If verification cannot be performed, state that clearly.
 
 The expanded app is complete when:
 
-* `/` shows the landing/dashboard with mock stats and navigation buttons
+* `/` shows the landing/dashboard with session state and navigation buttons
+* `/login` signs users in with Supabase Auth
+* `/register` signs users up with Supabase Auth
+* logout clears the session
 * `/flashcards` works with 10 AI flashcards from Ollama
 * `/multiple-choice` works with 5, 10, or 15 AI questions from Ollama
 * the sidebar navigates between Inicio, Flashcards, and Opción múltiple
@@ -432,6 +516,7 @@ The expanded app is complete when:
 * loading and errors are handled
 * retry works
 * no model call runs in the browser
+* Supabase helpers live only under `src/lib/supabase`
 * TypeScript/lint/build succeed
 * no unnecessary dependencies were added
 
@@ -443,8 +528,15 @@ When unsure, prefer the simplest solution that supports these flows:
 
 ```text
 Open app
-    -> See mock study stats
+    -> See session state
     -> Choose a study mode
+```
+
+```text
+Register / login
+    -> Supabase Auth session
+    -> auth.uid()
+    -> future RLS-backed persistence
 ```
 
 ```text
