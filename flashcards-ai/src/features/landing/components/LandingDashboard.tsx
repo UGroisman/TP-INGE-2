@@ -41,6 +41,11 @@ const actions: LandingAction[] = [
     description: "Respondé preguntas con 4 opciones.",
   },
   {
+    href: "/rag",
+    label: "Estudiar con material",
+    description: "Generá contenido basado en tus propios apuntes.",
+  },
+  {
     href: "/study-sets",
     label: "Ver study sets",
     description: "Revisá el contenido que guardaste.",
@@ -140,7 +145,7 @@ export function LandingDashboard({ userEmail }: LandingDashboardProps) {
           <h2 className="text-xl font-semibold text-zinc-950">
             Elegí cómo querés practicar
           </h2>
-          <div className="mt-5 grid gap-3 sm:grid-cols-3">
+          <div className="mt-5 grid gap-3 sm:grid-cols-2">
             {actions.map((action, index) => (
               <Link
                 key={action.href}

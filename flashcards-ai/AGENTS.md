@@ -19,8 +19,9 @@ The app has these main sections:
 1. Inicio: a landing/dashboard with welcome text, user session state, future Supabase-backed stats, and shortcuts to study modes.
 2. Flashcards: a student enters a topic and level, receives exactly 10 question/answer flashcards, and studies them one at a time.
 3. Opción múltiple: a student enters a topic, level, and question count, receives AI-generated questions with 4 options, selects an answer, and sees whether it was correct.
-4. Study sets: authenticated users can create study sets and save selected generated items into them.
-5. Autenticación: users can register, log in, and log out with Supabase Auth.
+4. RAG con material: authenticated users load study notes, select one or more documents, and generate grounded flashcards or multiple choice questions.
+5. Study sets: authenticated users can create study sets and save selected generated items into them.
+6. Autenticación: users can register, log in, and log out with Supabase Auth.
 
 The project may grow beyond the original MVP, but it should remain simple enough for an academic project.
 
@@ -39,13 +40,18 @@ Default configuration:
 ```text
 OLLAMA_BASE_URL=http://localhost:11434
 OLLAMA_MODEL=gemma3:1b
+OLLAMA_EMBEDDING_MODEL=nomic-embed-text
 ```
 
 These variables are optional because the app should use those defaults when they are missing.
 
-Never call Ollama directly from the browser. The browser calls a Next.js Route Handler, and the Route Handler calls Ollama.
+`OLLAMA_MODEL` generates study content. `OLLAMA_EMBEDDING_MODEL` creates the 768-dimensional vectors used by RAG.
+
+Never call Ollama directly from the browser. The browser calls a Next.js Route Handler, and the Route Handler calls Ollama for chat or embeddings.
 
 Ollama is used only for study content generation. It is not used for authentication, persistence, or dashboard stats.
+
+For `nomic-embed-text`, prefix stored chunks with `search_document:` and retrieval queries with `search_query:`. Always use the same embedding model and dimension when indexing and searching.
 
 ## Supabase
 
@@ -121,11 +127,31 @@ multiple_choice_options
   question_id uuid references multiple_choice_questions.id
   answer text
   is_correct boolean
+
+rag_documents
+  id uuid primary key
+  user_id uuid references auth.users.id
+  name text
+  embedding_model text
+  chunk_count integer
+  created_at timestamptz
+
+rag_document_chunks
+  id uuid primary key
+  document_id uuid references rag_documents.id
+  position integer
+  content text
+  embedding extensions.vector(768)
+  created_at timestamptz
 ```
 
 `study_sets.topic` is the display name of the study set in the UI.
 
 `multiple_choice_options.answer` stores the option text. UI/domain types may expose that value as `text`, but database reads and writes must use the real column name `answer`.
+
+RAG chunks inherit ownership through `rag_documents.user_id`; do not duplicate `user_id` in `rag_document_chunks`. Deleting a document must cascade to its chunks.
+
+Use the `match_rag_chunks` RPC as `SECURITY INVOKER`. It must filter by the authenticated user, selected document IDs, current embedding model, similarity threshold, and result limit. Only `authenticated` may execute it.
 
 Do not propose schema changes unless the user asks for functionality that requires them. Real answer history, accuracy, attempts, time spent, and exact ordering would require additional columns or tables.
 
@@ -135,7 +161,7 @@ Rely on existing RLS policies so users can only access their own data.
 
 ### Inicio
 
-The landing page at `/` must welcome the user, show session state, include an info box for future metrics, and provide buttons to `/flashcards`, `/multiple-choice`, and `/study-sets`.
+The landing page at `/` must welcome the user, show session state, include an info box for future metrics, and provide buttons to `/flashcards`, `/multiple-choice`, `/rag`, and `/study-sets`.
 
 Stats should come from Supabase once the database model supports them. Until then, use a pending/empty state rather than fake production data.
 
@@ -171,6 +197,20 @@ The multiple choice feature must allow the user to enter a topic, level, and cou
 
 After generation, the currently visible question can be saved into a selected study set.
 
+### RAG With Material
+
+RAG is an authenticated feature separate from normal generation. It must not change the behavior of `/flashcards` or `/multiple-choice`.
+
+Users can create, list, and delete text materials. The first version accepts pasted text only; do not add PDF parsing yet.
+
+Material is split into 1,000-character chunks with 150-character overlap. Generate embeddings in batch through Ollama `/api/embed`, validate exactly 768 finite numbers per chunk, and persist them in Supabase pgvector.
+
+Users can select between 1 and 10 of their own documents. Retrieval returns at most 8 chunks with similarity of at least `0.30` and must respect RLS.
+
+RAG supports exactly 10 flashcards or `5`, `10`, or `15` multiple choice questions. Prompts must use only retrieved context and must not add external knowledge.
+
+Generated RAG items are not persisted automatically. The visible flashcard or multiple choice question can be saved individually into an existing study set.
+
 ## Navigation
 
 Routes:
@@ -179,13 +219,18 @@ Routes:
 /
 /flashcards
 /multiple-choice
+/rag
+/rag/flashcards
+/rag/multiple-choice
 /study-sets
 /study-sets/[id]
 /login
 /register
 ```
 
-The study sidebar must let the user choose between Inicio, Flashcards, Opción múltiple, and Study sets.
+The study sidebar must let the user choose between Inicio, Flashcards, Opción múltiple, RAG con material, and Study sets.
+
+The RAG section must provide internal navigation between Materiales, Flashcards, and Opción múltiple.
 
 Auth routes (`/login`, `/register`) should render without the sidebar.
 
@@ -200,10 +245,12 @@ src/
 |   |-- (study)/
 |   |   |-- flashcards/
 |   |   |-- multiple-choice/
+|   |   |-- rag/
 |   |   `-- study-sets/
 |   |-- api/
 |   |   |-- flashcards/
 |   |   |-- multiple-choice/
+|   |   |-- rag/
 |   |   `-- study-sets/
 |   `-- layout.tsx
 |
@@ -216,10 +263,12 @@ src/
 |   |-- study/
 |   |-- study-sets/
 |   |-- flashcards/
-|   `-- multiple-choice/
+|   |-- multiple-choice/
+|   `-- rag/
 |
 |-- lib/
 |   |-- ollama.ts
+|   |-- rag/
 |   `-- supabase/
 |
 `-- proxy.ts
@@ -239,6 +288,7 @@ src/features/flashcards/types.ts
 src/features/multiple-choice/types.ts
 src/features/study-sets/types.ts
 src/features/landing/types.ts
+src/features/rag/types.ts
 ```
 
 Do not recreate domain types in route handlers or components when a feature type already exists.
@@ -259,6 +309,16 @@ Do not recreate domain types in route handlers or components when a feature type
 
 `POST /api/study-sets/[id]/multiple-choice` saves one multiple choice question and its four options into one study set.
 
+`GET /api/rag/documents` returns the authenticated user's RAG materials.
+
+`POST /api/rag/documents` accepts `{ name, content }`, chunks the text, generates embeddings, and persists one document with its chunks.
+
+`DELETE /api/rag/documents/[id]` deletes one owned document and cascades to its chunks.
+
+`POST /api/rag/flashcards` accepts `{ topic, level, documentIds }` and returns exactly 10 grounded flashcards.
+
+`POST /api/rag/multiple-choice` accepts `{ topic, level, count, documentIds }` and returns grounded multiple choice questions.
+
 ## Validation
 
 Validate input both client-side and server-side.
@@ -268,6 +328,10 @@ Topic and study set names must be strings, trimmed, non-empty, and 3-100 charact
 Level must be `primary`, `secondary`, or `university`.
 
 Multiple choice count must be `5`, `10`, or `15`.
+
+RAG material names must be 3-100 characters. Material content must be 100-50,000 characters and produce no more than 60 chunks.
+
+RAG generation must receive 1-10 unique, valid document IDs owned by the authenticated user.
 
 Do not call Ollama if generation validation fails.
 
@@ -285,6 +349,8 @@ Generated content requirements:
 * no duplicate questions
 * focus on understanding
 * stay on the requested topic
+
+RAG output must additionally be supported exclusively by retrieved material. If no selected chunk reaches the similarity threshold, return a useful error instead of asking the model to invent content.
 
 Prefer structured JSON output through Ollama's `format` option.
 
@@ -387,10 +453,15 @@ The expanded app is complete when:
 * logout clears the session
 * `/flashcards` works with 10 AI flashcards from Ollama
 * `/multiple-choice` works with 5, 10, or 15 AI questions from Ollama
+* `/rag` creates, lists, and deletes authenticated user materials
+* `/rag/flashcards` generates 10 grounded flashcards from selected materials
+* `/rag/multiple-choice` generates grounded questions from selected materials
 * `/study-sets` lists and creates authenticated user study sets
 * `/study-sets/[id]` shows saved flashcards and multiple choice questions
 * generated items are saved one by one, never automatically as a batch
-* the sidebar navigates between Inicio, Flashcards, Opción múltiple, and Study sets
+* the sidebar navigates between Inicio, Flashcards, Opción múltiple, RAG con material, and Study sets
+* RAG embeddings use `nomic-embed-text`, task prefixes, and exactly 768 dimensions
+* RAG retrieval cannot return another user's chunks
 * invalid input is rejected
 * loading and errors are handled
 * retry works
@@ -423,4 +494,12 @@ Study sets
     -> Create a set
     -> Open detail
     -> Review saved flashcards and multiple choice questions
+```
+
+```text
+Authenticated user + selected materials
+    -> Chunk and embed with Ollama
+    -> Persist and retrieve with Supabase pgvector + RLS
+    -> Generate grounded flashcards or multiple choice questions
+    -> Save selected items one by one
 ```

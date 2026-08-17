@@ -17,6 +17,10 @@ const navigationItems = [
     label: "Opción múltiple",
   },
   {
+    href: "/rag",
+    label: "RAG con material",
+  },
+  {
     href: "/study-sets",
     label: "Study sets",
   },
@@ -37,7 +41,7 @@ export function AppSidebar() {
 
         <nav
           aria-label="Funcionalidades"
-          className="flex gap-2 lg:mt-8 lg:flex-col"
+          className="flex flex-wrap gap-2 lg:mt-8 lg:flex-col"
         >
           {navigationItems.map((item) => {
             const isActive =

@@ -25,15 +25,24 @@ export class OllamaRequestError extends Error {
   }
 }
 
+export function getOllamaBaseUrl() {
+  return (
+    process.env.OLLAMA_BASE_URL?.replace(/\/$/, "") ??
+    "http://localhost:11434"
+  );
+}
+
+export function getOllamaModel() {
+  return process.env.OLLAMA_MODEL ?? "gemma3:1b";
+}
+
 export async function chatWithOllamaJson({
   schema,
   messages,
   temperature = 0.3,
 }: ChatWithOllamaJsonParams) {
-  const ollamaBaseUrl =
-    process.env.OLLAMA_BASE_URL?.replace(/\/$/, "") ??
-    "http://localhost:11434";
-  const ollamaModel = process.env.OLLAMA_MODEL ?? "gemma3:1b";
+  const ollamaBaseUrl = getOllamaBaseUrl();
+  const ollamaModel = getOllamaModel();
 
   let response: Response;
 
