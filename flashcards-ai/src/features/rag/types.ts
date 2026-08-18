@@ -37,4 +37,5 @@ export interface RagMultipleChoiceRequest extends RagFlashcardsRequest {
 
 export interface RagMultipleChoiceResponse {
   questions: MultipleChoiceQuestion[];
+  trackingEnabled: boolean;
 }

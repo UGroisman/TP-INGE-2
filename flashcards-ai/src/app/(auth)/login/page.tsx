@@ -1,25 +1,19 @@
-import { Suspense } from "react";
 import { LoginForm } from "@/features/auth/components/LoginForm";
+import { getSafeRedirectPath } from "@/features/auth/redirect";
 
-export default function LoginPage() {
-  return (
-    <main className="flex min-h-screen items-center justify-center bg-zinc-50 px-4 py-8 text-zinc-950">
-      <Suspense fallback={<AuthFormFallback title="Iniciar sesión" />}>
-        <LoginForm />
-      </Suspense>
-    </main>
-  );
+interface LoginPageProps {
+  searchParams: Promise<{
+    next?: string | string[];
+  }>;
 }
 
-function AuthFormFallback({ title }: { title: string }) {
+export default async function LoginPage({ searchParams }: LoginPageProps) {
+  const params = await searchParams;
+  const redirectPath = getSafeRedirectPath(params.next);
+
   return (
-    <div className="w-full max-w-md rounded-lg border border-zinc-200 bg-white p-6 shadow-sm">
-      <p className="text-sm font-semibold uppercase tracking-wide text-teal-700">
-        Acceso
-      </p>
-      <h1 className="mt-2 text-3xl font-bold tracking-normal text-zinc-950">
-        {title}
-      </h1>
-    </div>
+    <main className="flex min-h-screen items-center justify-center bg-zinc-50 px-4 py-8 text-zinc-950">
+      <LoginForm redirectPath={redirectPath} />
+    </main>
   );
 }

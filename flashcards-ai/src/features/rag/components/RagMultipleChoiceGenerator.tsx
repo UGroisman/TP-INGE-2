@@ -11,6 +11,7 @@ import { maxSelectedRagDocuments } from "@/features/rag/constants";
 import { RagDocumentSelector } from "@/features/rag/components/RagDocumentSelector";
 import { useRagDocuments } from "@/features/rag/hooks/useRagDocuments";
 import { generateRagMultipleChoice } from "@/features/rag/services/rag";
+import { saveMultipleChoiceAttempt } from "@/features/adaptive-learning/services/attempts";
 import {
   educationLevelOptions,
   type EducationLevel,
@@ -39,6 +40,7 @@ export function RagMultipleChoiceGenerator() {
   const [lastRequest, setLastRequest] =
     useState<RagMultipleChoiceRequestState | null>(null);
   const [deckVersion, setDeckVersion] = useState(0);
+  const [trackingEnabled, setTrackingEnabled] = useState(false);
   const [loading, setLoading] = useState(false);
   const [validationError, setValidationError] = useState<string | null>(null);
   const [requestError, setRequestError] = useState<string | null>(null);
@@ -86,16 +88,18 @@ export function RagMultipleChoiceGenerator() {
     setLastRequest(request);
 
     try {
-      const generatedQuestions = await generateRagMultipleChoice(
+      const result = await generateRagMultipleChoice(
         request.topic,
         request.level,
         request.count,
         request.documentIds,
       );
-      setQuestions(generatedQuestions);
+      setQuestions(result.questions);
+      setTrackingEnabled(result.trackingEnabled);
       setDeckVersion((version) => version + 1);
     } catch (error) {
       setQuestions([]);
+      setTrackingEnabled(false);
       setRequestError(
         error instanceof Error
           ? error.message
@@ -104,6 +108,26 @@ export function RagMultipleChoiceGenerator() {
     } finally {
       setLoading(false);
     }
+  }
+
+  async function saveAnswer(
+    question: MultipleChoiceQuestion,
+    selectedOptionIndex: number,
+  ) {
+    if (!lastRequest) {
+      throw new Error("No pudimos identificar esta sesión de estudio.");
+    }
+
+    await saveMultipleChoiceAttempt({
+      questionId: question.id,
+      topic: lastRequest.topic,
+      level: lastRequest.level,
+      source: "rag",
+      difficulty: question.difficulty,
+      question: question.question,
+      selectedOptionIndex,
+      correctOptionIndex: question.correctOptionIndex,
+    });
   }
 
   return (
@@ -236,6 +260,7 @@ export function RagMultipleChoiceGenerator() {
         <MultipleChoiceDeck
           key={deckVersion}
           questions={questions}
+          onAnswer={trackingEnabled ? saveAnswer : undefined}
           renderSaveAction={(question, index) => (
             <SaveGeneratedItemPanel
               kind="multiple-choice"

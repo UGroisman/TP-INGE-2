@@ -1,15 +1,19 @@
 import { redirect } from "next/navigation";
+import { SessionUnavailable } from "@/features/auth/components/SessionUnavailable";
+import { getServerAuthState } from "@/features/auth/server";
 import { RagDocumentsManager } from "@/features/rag/components/RagDocumentsManager";
-import { createClient } from "@/lib/supabase/server";
+
+const pagePath = "/rag";
 
 export default async function RagDocumentsPage() {
-  const supabase = await createClient();
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
+  const auth = await getServerAuthState();
 
-  if (!user) {
-    redirect("/login?next=/rag");
+  if (auth.status === "anonymous") {
+    redirect(`/login?next=${encodeURIComponent(pagePath)}`);
+  }
+
+  if (auth.status === "unavailable") {
+    return <SessionUnavailable retryHref={pagePath} />;
   }
 
   return (

@@ -9,6 +9,7 @@ import {
   isEducationLevel,
   type EducationLevel,
 } from "@/features/study/types";
+import { getAuthenticatedServerClient } from "@/features/auth/server";
 import type { RagDocument } from "@/features/rag/types";
 import {
   maxSelectedRagDocuments,
@@ -19,7 +20,6 @@ import {
   ragMatchCount,
   ragMatchThreshold,
 } from "@/features/rag/constants";
-import { createClient } from "@/lib/supabase/server";
 import {
   createEmbeddings,
   getOllamaEmbeddingModel,
@@ -42,21 +42,9 @@ interface RagMatchRow {
 }
 
 export async function getAuthenticatedRagClient() {
-  const supabase = await createClient();
-  const {
-    data: { user },
-    error,
-  } = await supabase.auth.getUser();
-
-  if (error || !user) {
-    return {
-      ok: false as const,
-      status: 401,
-      error: "Iniciá sesión para usar RAG con tus materiales.",
-    };
-  }
-
-  return { ok: true as const, supabase, user };
+  return getAuthenticatedServerClient(
+    "Iniciá sesión para usar RAG con tus materiales.",
+  );
 }
 
 export function toRagDocument(row: RagDocumentRow): RagDocument {

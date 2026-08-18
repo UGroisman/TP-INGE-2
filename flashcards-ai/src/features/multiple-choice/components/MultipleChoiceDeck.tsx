@@ -6,6 +6,10 @@ import type { ReactNode } from "react";
 
 interface MultipleChoiceDeckProps {
   questions: MultipleChoiceQuestion[];
+  onAnswer?: (
+    question: MultipleChoiceQuestion,
+    selectedOptionIndex: number,
+  ) => Promise<void>;
   renderSaveAction?: (
     question: MultipleChoiceQuestion,
     index: number,
@@ -14,11 +18,21 @@ interface MultipleChoiceDeckProps {
 
 export function MultipleChoiceDeck({
   questions,
+  onAnswer,
   renderSaveAction,
 }: MultipleChoiceDeckProps) {
   const [currentIndex, setCurrentIndex] = useState(0);
   const [selectedAnswers, setSelectedAnswers] = useState<
-    Record<number, number>
+    Record<string, number>
+  >({});
+  const [attemptStates, setAttemptStates] = useState<
+    Record<
+      string,
+      {
+        status: "saving" | "saved" | "error";
+        error?: string;
+      }
+    >
   >({});
 
   if (questions.length === 0) {
@@ -26,7 +40,8 @@ export function MultipleChoiceDeck({
   }
 
   const currentQuestion = questions[currentIndex];
-  const selectedOptionIndex = selectedAnswers[currentIndex];
+  const selectedOptionIndex = selectedAnswers[currentQuestion.id];
+  const attemptState = attemptStates[currentQuestion.id];
   const hasSelectedOption = selectedOptionIndex !== undefined;
   const isCorrect =
     hasSelectedOption &&
@@ -41,8 +56,45 @@ export function MultipleChoiceDeck({
 
     setSelectedAnswers((answers) => ({
       ...answers,
-      [currentIndex]: optionIndex,
+      [currentQuestion.id]: optionIndex,
     }));
+
+    if (onAnswer) {
+      void saveAnswer(currentQuestion, optionIndex);
+    }
+  }
+
+  async function saveAnswer(
+    question: MultipleChoiceQuestion,
+    optionIndex: number,
+  ) {
+    if (!onAnswer) {
+      return;
+    }
+
+    setAttemptStates((states) => ({
+      ...states,
+      [question.id]: { status: "saving" },
+    }));
+
+    try {
+      await onAnswer(question, optionIndex);
+      setAttemptStates((states) => ({
+        ...states,
+        [question.id]: { status: "saved" },
+      }));
+    } catch (error) {
+      setAttemptStates((states) => ({
+        ...states,
+        [question.id]: {
+          status: "error",
+          error:
+            error instanceof Error
+              ? error.message
+              : "No pudimos guardar tu progreso.",
+        },
+      }));
+    }
   }
 
   return (
@@ -67,7 +119,7 @@ export function MultipleChoiceDeck({
 
             return (
               <button
-                key={`${currentIndex}-${optionIndex}`}
+                key={`${currentQuestion.id}-${optionIndex}`}
                 type="button"
                 onClick={() => selectOption(optionIndex)}
                 disabled={hasSelectedOption}
@@ -100,6 +152,35 @@ export function MultipleChoiceDeck({
                   65 + currentQuestion.correctOptionIndex,
                 )}.`}
           </p>
+        ) : null}
+
+        {attemptState?.status === "saving" ? (
+          <p
+            role="status"
+            className="mt-3 text-sm font-medium text-teal-700"
+          >
+            Guardando progreso...
+          </p>
+        ) : null}
+
+        {attemptState?.status === "error" ? (
+          <div
+            role="alert"
+            className="mt-3 flex flex-wrap items-center justify-between gap-3 rounded-md border border-amber-200 bg-amber-50 p-3 text-sm text-amber-950"
+          >
+            <p className="font-medium">
+              {attemptState.error || "No pudimos guardar tu progreso."}
+            </p>
+            <button
+              type="button"
+              onClick={() =>
+                void saveAnswer(currentQuestion, selectedOptionIndex)
+              }
+              className="rounded-md border border-amber-300 bg-white px-3 py-2 font-semibold transition hover:bg-amber-100 focus:outline-none focus:ring-2 focus:ring-amber-600 focus:ring-offset-2"
+            >
+              Reintentar
+            </button>
+          </div>
         ) : null}
       </article>
 

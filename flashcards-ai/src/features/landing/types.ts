@@ -9,3 +9,10 @@ export interface LandingAction {
   label: string;
   description: string;
 }
+
+export interface LandingStudyStats {
+  correctAnswers: number;
+  totalAttempts: number;
+  accuracy: number | null;
+  topicsPracticed: number;
+}

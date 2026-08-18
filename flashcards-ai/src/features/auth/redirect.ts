@@ -1,11 +1,26 @@
 const defaultRedirectPath = "/";
+const internalRedirectOrigin = "http://internal.local";
 
-export function getSafeRedirectPath(value: string | null) {
-  if (!value || !value.startsWith("/") || value.startsWith("//")) {
+export function getSafeRedirectPath(value: unknown) {
+  if (
+    typeof value !== "string" ||
+    !value.startsWith("/") ||
+    value.startsWith("//")
+  ) {
     return defaultRedirectPath;
   }
 
-  return value;
+  try {
+    const destination = new URL(value, internalRedirectOrigin);
+
+    if (destination.origin !== internalRedirectOrigin) {
+      return defaultRedirectPath;
+    }
+
+    return `${destination.pathname}${destination.search}${destination.hash}`;
+  } catch {
+    return defaultRedirectPath;
+  }
 }
 
 export function getAuthLinkHref(pathname: "/login" | "/register", next: string) {

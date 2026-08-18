@@ -1,15 +1,19 @@
 import { redirect } from "next/navigation";
+import { SessionUnavailable } from "@/features/auth/components/SessionUnavailable";
+import { getServerAuthState } from "@/features/auth/server";
 import { StudySetsManager } from "@/features/study-sets/components/StudySetsManager";
-import { createClient } from "@/lib/supabase/server";
+
+const pagePath = "/study-sets";
 
 export default async function StudySetsPage() {
-  const supabase = await createClient();
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
+  const auth = await getServerAuthState();
 
-  if (!user) {
-    redirect("/login?next=/study-sets");
+  if (auth.status === "anonymous") {
+    redirect(`/login?next=${encodeURIComponent(pagePath)}`);
+  }
+
+  if (auth.status === "unavailable") {
+    return <SessionUnavailable retryHref={pagePath} />;
   }
 
   return (

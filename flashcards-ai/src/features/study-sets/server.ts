@@ -1,12 +1,11 @@
-import type { User } from "@supabase/supabase-js";
 import type { Flashcard } from "@/features/flashcards/types";
-import type { MultipleChoiceQuestion } from "@/features/multiple-choice/types";
+import { getAuthenticatedServerClient } from "@/features/auth/server";
+import type { MultipleChoiceContent } from "@/features/multiple-choice/types";
 import type {
   SavedMultipleChoiceOption,
   StudySetDetail,
   StudySetSummary,
 } from "@/features/study-sets/types";
-import { createClient } from "@/lib/supabase/server";
 
 interface StudySetRow {
   id: string;
@@ -41,21 +40,9 @@ export function toStudySetSummary(row: StudySetRow): StudySetSummary {
 }
 
 export async function getAuthenticatedSupabase() {
-  const supabase = await createClient();
-  const {
-    data: { user },
-    error,
-  } = await supabase.auth.getUser();
-
-  if (error || !user) {
-    return {
-      ok: false as const,
-      status: 401,
-      error: "Iniciá sesión para usar tus study sets.",
-    };
-  }
-
-  return { ok: true as const, supabase, user: user as User };
+  return getAuthenticatedServerClient(
+    "Iniciá sesión para usar tus study sets.",
+  );
 }
 
 export function validateStudySetTopic(topic: unknown) {
@@ -106,7 +93,7 @@ export function validateFlashcardInput(value: unknown):
 }
 
 export function validateMultipleChoiceInput(value: unknown):
-  | { ok: true; question: MultipleChoiceQuestion }
+  | { ok: true; question: MultipleChoiceContent }
   | { ok: false; error: string } {
   if (typeof value !== "object" || value === null) {
     return { ok: false, error: "La pregunta no tiene un formato válido." };

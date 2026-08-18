@@ -1,15 +1,19 @@
 import { redirect } from "next/navigation";
+import { SessionUnavailable } from "@/features/auth/components/SessionUnavailable";
+import { getServerAuthState } from "@/features/auth/server";
 import { RagFlashcardGenerator } from "@/features/rag/components/RagFlashcardGenerator";
-import { createClient } from "@/lib/supabase/server";
+
+const pagePath = "/rag/flashcards";
 
 export default async function RagFlashcardsPage() {
-  const supabase = await createClient();
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
+  const auth = await getServerAuthState();
 
-  if (!user) {
-    redirect("/login?next=/rag/flashcards");
+  if (auth.status === "anonymous") {
+    redirect(`/login?next=${encodeURIComponent(pagePath)}`);
+  }
+
+  if (auth.status === "unavailable") {
+    return <SessionUnavailable retryHref={pagePath} />;
   }
 
   return (

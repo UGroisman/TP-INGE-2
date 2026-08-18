@@ -1,51 +1,26 @@
 "use client";
 
-import { FormEvent, useState } from "react";
+import { useActionState } from "react";
 import Link from "next/link";
-import { useRouter, useSearchParams } from "next/navigation";
-import { getAuthLinkHref, getSafeRedirectPath } from "@/features/auth/redirect";
-import { createClient } from "@/lib/supabase/client";
+import { registerAction } from "@/features/auth/actions";
+import { getAuthLinkHref } from "@/features/auth/redirect";
+import type { AuthActionState } from "@/features/auth/types";
 
-export function RegisterForm() {
-  const router = useRouter();
-  const searchParams = useSearchParams();
-  const redirectPath = getSafeRedirectPath(searchParams.get("next"));
+interface RegisterFormProps {
+  redirectPath: string;
+}
+
+const initialState: AuthActionState = {
+  status: "idle",
+  message: null,
+};
+
+export function RegisterForm({ redirectPath }: RegisterFormProps) {
   const loginHref = getAuthLinkHref("/login", redirectPath);
-  const [email, setEmail] = useState("");
-  const [password, setPassword] = useState("");
-  const [message, setMessage] = useState<string | null>(null);
-  const [messageType, setMessageType] = useState<"error" | "success">("error");
-  const [loading, setLoading] = useState(false);
-
-  async function handleSubmit(event: FormEvent<HTMLFormElement>) {
-    event.preventDefault();
-    setLoading(true);
-    setMessage(null);
-
-    const supabase = createClient();
-    const { data, error } = await supabase.auth.signUp({
-      email,
-      password,
-    });
-
-    if (error) {
-      setMessageType("error");
-      setMessage(error.message);
-      setLoading(false);
-      return;
-    }
-
-    if (!data.session) {
-      setMessageType("success");
-      setMessage("Usuario creado. Revisá tu email para confirmar la cuenta.");
-      setLoading(false);
-      router.refresh();
-      return;
-    }
-
-    router.push(redirectPath);
-    router.refresh();
-  }
+  const [state, formAction, pending] = useActionState(
+    registerAction,
+    initialState,
+  );
 
   return (
     <div className="w-full max-w-md rounded-lg border border-zinc-200 bg-white p-6 shadow-sm">
@@ -56,11 +31,12 @@ export function RegisterForm() {
         Crear cuenta
       </h1>
       <p className="mt-2 text-sm leading-6 text-zinc-600">
-        Creá tu usuario para preparar la persistencia de tus sesiones de
-        estudio.
+        Creá tu usuario para guardar tus sesiones de estudio.
       </p>
 
-      <form onSubmit={handleSubmit} className="mt-6 grid gap-4">
+      <form action={formAction} className="mt-6 grid gap-4">
+        <input type="hidden" name="next" value={redirectPath} />
+
         <div>
           <label
             htmlFor="register-email"
@@ -70,11 +46,11 @@ export function RegisterForm() {
           </label>
           <input
             id="register-email"
+            name="email"
             type="email"
-            value={email}
-            onChange={(event) => setEmail(event.target.value)}
+            autoComplete="email"
             required
-            disabled={loading}
+            disabled={pending}
             className="mt-2 h-11 w-full rounded-md border border-zinc-300 px-3 text-zinc-950 outline-none transition placeholder:text-zinc-400 focus:border-teal-700 focus:ring-2 focus:ring-teal-100 disabled:bg-zinc-100"
           />
         </div>
@@ -88,34 +64,35 @@ export function RegisterForm() {
           </label>
           <input
             id="register-password"
+            name="password"
             type="password"
-            value={password}
-            onChange={(event) => setPassword(event.target.value)}
+            autoComplete="new-password"
             required
-            disabled={loading}
+            disabled={pending}
             minLength={6}
             className="mt-2 h-11 w-full rounded-md border border-zinc-300 px-3 text-zinc-950 outline-none transition placeholder:text-zinc-400 focus:border-teal-700 focus:ring-2 focus:ring-teal-100 disabled:bg-zinc-100"
           />
         </div>
 
-        {message ? (
+        {state.message ? (
           <p
+            aria-live="polite"
             className={`rounded-md border p-3 text-sm font-medium ${
-              messageType === "success"
+              state.status === "success"
                 ? "border-emerald-200 bg-emerald-50 text-emerald-800"
                 : "border-red-200 bg-red-50 text-red-800"
             }`}
           >
-            {message}
+            {state.message}
           </p>
         ) : null}
 
         <button
           type="submit"
-          disabled={loading}
+          disabled={pending || state.status === "success"}
           className="rounded-md bg-zinc-950 px-4 py-3 font-semibold text-white transition hover:bg-zinc-800 focus:outline-none focus:ring-2 focus:ring-teal-600 focus:ring-offset-2 disabled:cursor-wait disabled:opacity-60"
         >
-          {loading ? "Creando..." : "Crear cuenta"}
+          {pending ? "Creando..." : "Crear cuenta"}
         </button>
       </form>
 

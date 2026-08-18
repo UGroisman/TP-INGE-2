@@ -1,5 +1,6 @@
 import { createServerClient } from "@supabase/ssr";
 import { type NextRequest, NextResponse } from "next/server";
+import { fetchWithSupabaseTimeout } from "@/lib/supabase/fetch";
 
 const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
 const supabaseKey = process.env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY;
@@ -19,6 +20,9 @@ export async function updateSession(request: NextRequest) {
   });
 
   const supabase = createServerClient(config.supabaseUrl, config.supabaseKey, {
+    global: {
+      fetch: fetchWithSupabaseTimeout,
+    },
     cookies: {
       getAll() {
         return request.cookies.getAll();
@@ -39,7 +43,11 @@ export async function updateSession(request: NextRequest) {
     },
   });
 
-  await supabase.auth.getUser();
+  try {
+    await supabase.auth.getClaims();
+  } catch {
+    // Route-level auth handles temporary verification failures.
+  }
 
   return supabaseResponse;
 }

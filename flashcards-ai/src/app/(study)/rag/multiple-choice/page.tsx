@@ -1,15 +1,19 @@
 import { redirect } from "next/navigation";
+import { SessionUnavailable } from "@/features/auth/components/SessionUnavailable";
+import { getServerAuthState } from "@/features/auth/server";
 import { RagMultipleChoiceGenerator } from "@/features/rag/components/RagMultipleChoiceGenerator";
-import { createClient } from "@/lib/supabase/server";
+
+const pagePath = "/rag/multiple-choice";
 
 export default async function RagMultipleChoicePage() {
-  const supabase = await createClient();
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
+  const auth = await getServerAuthState();
 
-  if (!user) {
-    redirect("/login?next=/rag/multiple-choice");
+  if (auth.status === "anonymous") {
+    redirect(`/login?next=${encodeURIComponent(pagePath)}`);
+  }
+
+  if (auth.status === "unavailable") {
+    return <SessionUnavailable retryHref={pagePath} />;
   }
 
   return (

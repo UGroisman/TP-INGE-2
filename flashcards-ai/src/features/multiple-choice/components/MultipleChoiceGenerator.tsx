@@ -4,6 +4,7 @@ import { useState } from "react";
 import { MultipleChoiceDeck } from "@/features/multiple-choice/components/MultipleChoiceDeck";
 import { MultipleChoiceForm } from "@/features/multiple-choice/components/MultipleChoiceForm";
 import { generateMultipleChoiceQuestions } from "@/features/multiple-choice/services/multipleChoice";
+import { saveMultipleChoiceAttempt } from "@/features/adaptive-learning/services/attempts";
 import { SaveGeneratedItemPanel } from "@/features/study-sets/components/SaveGeneratedItemPanel";
 import type {
   MultipleChoiceQuestion,
@@ -19,6 +20,7 @@ export function MultipleChoiceGenerator() {
     count: QuestionCount;
   } | null>(null);
   const [deckVersion, setDeckVersion] = useState(0);
+  const [trackingEnabled, setTrackingEnabled] = useState(false);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -32,16 +34,18 @@ export function MultipleChoiceGenerator() {
     setLastRequest({ topic, level, count });
 
     try {
-      const generatedQuestions = await generateMultipleChoiceQuestions(
+      const result = await generateMultipleChoiceQuestions(
         topic,
         level,
         count,
       );
 
-      setQuestions(generatedQuestions);
+      setQuestions(result.questions);
+      setTrackingEnabled(result.trackingEnabled);
       setDeckVersion((version) => version + 1);
     } catch (requestError) {
       setQuestions([]);
+      setTrackingEnabled(false);
       setError(
         requestError instanceof Error
           ? requestError.message
@@ -62,6 +66,26 @@ export function MultipleChoiceGenerator() {
       lastRequest.level,
       lastRequest.count,
     );
+  }
+
+  async function saveAnswer(
+    question: MultipleChoiceQuestion,
+    selectedOptionIndex: number,
+  ) {
+    if (!lastRequest) {
+      throw new Error("No pudimos identificar esta sesión de estudio.");
+    }
+
+    await saveMultipleChoiceAttempt({
+      questionId: question.id,
+      topic: lastRequest.topic,
+      level: lastRequest.level,
+      source: "standard",
+      difficulty: question.difficulty,
+      question: question.question,
+      selectedOptionIndex,
+      correctOptionIndex: question.correctOptionIndex,
+    });
   }
 
   return (
@@ -99,6 +123,7 @@ export function MultipleChoiceGenerator() {
         <MultipleChoiceDeck
           key={deckVersion}
           questions={questions}
+          onAnswer={trackingEnabled ? saveAnswer : undefined}
           renderSaveAction={(question, index) => (
             <SaveGeneratedItemPanel
               kind="multiple-choice"

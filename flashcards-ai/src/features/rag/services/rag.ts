@@ -1,9 +1,7 @@
 import {
   validateFlashcardsOutput,
 } from "@/features/flashcards/generation";
-import {
-  validateQuestionsOutput,
-} from "@/features/multiple-choice/generation";
+import { validateMultipleChoiceResponse } from "@/features/multiple-choice/generation";
 import type { QuestionCount } from "@/features/multiple-choice/types";
 import type {
   RagDocument,
@@ -92,13 +90,13 @@ export async function generateRagMultipleChoice(
     body: JSON.stringify({ topic, level, count, documentIds }),
   });
   const data = await readResponse(response);
-  const questions = validateQuestionsOutput(data, count);
+  const parsedResponse = validateMultipleChoiceResponse(data, count);
 
-  if (!questions) {
+  if (!parsedResponse) {
     throw new Error("La respuesta RAG no contiene preguntas válidas.");
   }
 
-  return questions;
+  return parsedResponse;
 }
 
 async function readResponse(response: Response) {

@@ -1,7 +1,9 @@
 import type {
+  MultipleChoiceContent,
   MultipleChoiceQuestion,
   QuestionCount,
 } from "@/features/multiple-choice/types";
+import { isAdaptiveDifficulty } from "@/features/adaptive-learning/types";
 
 const multipleChoiceSchema = {
   type: "object",
@@ -56,7 +58,7 @@ export function buildMultipleChoiceSchema(count: QuestionCount) {
 export function validateQuestionsOutput(
   output: unknown,
   count: QuestionCount,
-): MultipleChoiceQuestion[] | null {
+): MultipleChoiceContent[] | null {
   if (
     typeof output !== "object" ||
     output === null ||
@@ -72,7 +74,7 @@ export function validateQuestionsOutput(
   }
 
   const normalizedQuestions = new Set<string>();
-  const validQuestions: MultipleChoiceQuestion[] = [];
+  const validQuestions: MultipleChoiceContent[] = [];
 
   for (const question of questions) {
     if (!isValidQuestion(question)) {
@@ -96,7 +98,7 @@ export function validateQuestionsOutput(
   return validQuestions;
 }
 
-function isValidQuestion(value: unknown): value is MultipleChoiceQuestion {
+function isValidQuestion(value: unknown): value is MultipleChoiceContent {
   if (typeof value !== "object" || value === null) {
     return false;
   }
@@ -124,6 +126,58 @@ function isValidQuestion(value: unknown): value is MultipleChoiceQuestion {
   );
 }
 
+export function validateMultipleChoiceResponse(
+  output: unknown,
+  count: QuestionCount,
+): { questions: MultipleChoiceQuestion[]; trackingEnabled: boolean } | null {
+  if (
+    typeof output !== "object" ||
+    output === null ||
+    !("questions" in output) ||
+    !("trackingEnabled" in output) ||
+    typeof output.trackingEnabled !== "boolean" ||
+    !Array.isArray(output.questions) ||
+    output.questions.length !== count
+  ) {
+    return null;
+  }
+
+  const normalizedQuestions = new Set<string>();
+  const questions: MultipleChoiceQuestion[] = [];
+
+  for (const value of output.questions) {
+    if (
+      !isValidQuestion(value) ||
+      !("id" in value) ||
+      !("difficulty" in value) ||
+      typeof value.id !== "string" ||
+      !isUuid(value.id) ||
+      !isAdaptiveDifficulty(value.difficulty)
+    ) {
+      return null;
+    }
+
+    const normalizedQuestion = value.question
+      .trim()
+      .toLocaleLowerCase("es");
+
+    if (normalizedQuestions.has(normalizedQuestion)) {
+      return null;
+    }
+
+    normalizedQuestions.add(normalizedQuestion);
+    questions.push({
+      id: value.id,
+      question: value.question.trim(),
+      options: value.options.map((option) => option.trim()),
+      correctOptionIndex: value.correctOptionIndex,
+      difficulty: value.difficulty,
+    });
+  }
+
+  return { questions, trackingEnabled: output.trackingEnabled };
+}
+
 function areValidOptions(value: unknown) {
   if (!Array.isArray(value) || value.length !== 4) {
     return false;
@@ -146,4 +200,10 @@ function areValidOptions(value: unknown) {
   }
 
   return true;
+}
+
+function isUuid(value: string) {
+  return /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(
+    value,
+  );
 }

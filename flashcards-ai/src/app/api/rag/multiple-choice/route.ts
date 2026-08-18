@@ -1,3 +1,9 @@
+import { buildDifficultyInstructions } from "@/features/adaptive-learning/algorithm";
+import {
+  AdaptiveProgressError,
+  enrichMultipleChoiceQuestions,
+  getDifficultyPlan,
+} from "@/features/adaptive-learning/server";
 import {
   buildMultipleChoiceSchema,
   validateQuestionsOutput,
@@ -36,6 +42,12 @@ export async function POST(request: Request) {
   }
 
   try {
+    const difficultyPlan = await getDifficultyPlan(
+      auth.supabase,
+      validation.topic,
+      validation.level,
+      validation.count,
+    );
     const retrieval = await retrieveRagContext(
       auth.supabase,
       validation.topic,
@@ -64,6 +76,7 @@ export async function POST(request: Request) {
             `Generá exactamente ${validation.count} preguntas educativas de opción múltiple.`,
             `Tema solicitado: ${validation.topic}`,
             `Nivel educativo: ${educationLevelLabels[validation.level]}`,
+            buildDifficultyInstructions(difficultyPlan),
             "Cada pregunta debe tener question, cuatro options y correctOptionIndex.",
             "Todas las respuestas correctas deben estar respaldadas directamente por el material.",
             "No agregues conocimiento externo, suposiciones ni datos inventados.",
@@ -77,17 +90,29 @@ export async function POST(request: Request) {
         },
       ],
     });
-    const questions = validateQuestionsOutput(output, validation.count);
+    const questionContent = validateQuestionsOutput(
+      output,
+      validation.count,
+    );
 
-    if (!questions) {
+    if (!questionContent) {
       return Response.json(
         { error: "El modelo local no devolvió preguntas RAG válidas." },
         { status: 502 },
       );
     }
 
-    return Response.json({ questions });
+    const questions = enrichMultipleChoiceQuestions(
+      questionContent,
+      difficultyPlan,
+    );
+
+    return Response.json({ questions, trackingEnabled: true });
   } catch (error) {
+    if (error instanceof AdaptiveProgressError) {
+      return Response.json({ error: error.message }, { status: 500 });
+    }
+
     if (
       error instanceof OllamaEmbeddingError ||
       error instanceof OllamaRequestError

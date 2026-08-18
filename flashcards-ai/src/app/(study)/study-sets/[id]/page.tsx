@@ -1,7 +1,8 @@
 import Link from "next/link";
 import { redirect } from "next/navigation";
+import { SessionUnavailable } from "@/features/auth/components/SessionUnavailable";
+import { getServerAuthState } from "@/features/auth/server";
 import { StudySetDetailLoader } from "@/features/study-sets/components/StudySetDetailLoader";
-import { createClient } from "@/lib/supabase/server";
 
 interface StudySetDetailPageProps {
   params: Promise<{
@@ -13,13 +14,15 @@ export default async function StudySetDetailPage({
   params,
 }: StudySetDetailPageProps) {
   const { id } = await params;
-  const supabase = await createClient();
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
+  const pagePath = `/study-sets/${id}`;
+  const auth = await getServerAuthState();
 
-  if (!user) {
-    redirect(`/login?next=${encodeURIComponent(`/study-sets/${id}`)}`);
+  if (auth.status === "anonymous") {
+    redirect(`/login?next=${encodeURIComponent(pagePath)}`);
+  }
+
+  if (auth.status === "unavailable") {
+    return <SessionUnavailable retryHref={pagePath} />;
   }
 
   return (

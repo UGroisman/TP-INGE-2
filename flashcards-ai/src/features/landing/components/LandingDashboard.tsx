@@ -1,33 +1,14 @@
+import type { ReactNode } from "react";
 import Link from "next/link";
 import { LogoutButton } from "@/features/auth/components/LogoutButton";
-import type { LandingAction, LandingStat } from "@/features/landing/types";
+import { SessionRetryButton } from "@/features/auth/components/SessionRetryButton";
+import type { LandingAction } from "@/features/landing/types";
 
 interface LandingDashboardProps {
+  sessionStatus: "authenticated" | "anonymous" | "unavailable";
   userEmail?: string | null;
+  statsContent: ReactNode;
 }
-
-const stats: LandingStat[] = [
-  {
-    label: "Correctas",
-    value: "-",
-    detail: "se calcularán desde respuestas guardadas",
-  },
-  {
-    label: "Flashcards",
-    value: "-",
-    detail: "se calcularán desde sets persistidos",
-  },
-  {
-    label: "Sesiones",
-    value: "-",
-    detail: "se calcularán desde actividad real",
-  },
-  {
-    label: "Temas",
-    value: "-",
-    detail: "se calcularán desde tu historial",
-  },
-];
 
 const actions: LandingAction[] = [
   {
@@ -59,9 +40,11 @@ const futureStats = [
   "Historial de sesiones",
 ];
 
-export function LandingDashboard({ userEmail }: LandingDashboardProps) {
-  const isLoggedIn = Boolean(userEmail);
-
+export function LandingDashboard({
+  sessionStatus,
+  userEmail,
+  statsContent,
+}: LandingDashboardProps) {
   return (
     <div className="w-full">
       <section className="grid gap-4 lg:grid-cols-[1fr_auto] lg:items-start">
@@ -73,72 +56,15 @@ export function LandingDashboard({ userEmail }: LandingDashboardProps) {
             Bienvenido a tu espacio de estudio
           </h1>
           <p className="mt-3 max-w-2xl text-base leading-7 text-zinc-600">
-            Repasá con flashcards, practicá con opción múltiple y prepará tu
-            avance para guardarlo con Supabase.
+            Repasá con flashcards, practicá con opción múltiple y dejá que las
+            próximas preguntas se ajusten a tu rendimiento.
           </p>
         </div>
 
-        <div className="rounded-lg border border-zinc-200 bg-white p-4 shadow-sm">
-          {isLoggedIn ? (
-            <div className="grid gap-3">
-              <div>
-                <p className="text-sm font-semibold text-zinc-950">
-                  Sesión activa
-                </p>
-                <p className="mt-1 text-sm text-zinc-600">
-                  Logueado como: {userEmail}
-                </p>
-              </div>
-              <LogoutButton />
-            </div>
-          ) : (
-            <div className="grid gap-3">
-              <div>
-                <p className="text-sm font-semibold text-zinc-950">
-                  Sin sesión
-                </p>
-                <p className="mt-1 text-sm text-zinc-600">
-                  Iniciá sesión para preparar el guardado de tus datos.
-                </p>
-              </div>
-              <div className="flex flex-wrap gap-2">
-                <Link
-                  href="/login"
-                  className="rounded-md bg-teal-700 px-4 py-2 text-sm font-semibold text-white transition hover:bg-teal-800 focus:outline-none focus:ring-2 focus:ring-teal-600 focus:ring-offset-2"
-                >
-                  Iniciar sesión
-                </Link>
-                <Link
-                  href="/register"
-                  className="rounded-md border border-zinc-300 bg-white px-4 py-2 text-sm font-semibold text-zinc-900 transition hover:bg-zinc-100 focus:outline-none focus:ring-2 focus:ring-teal-600 focus:ring-offset-2"
-                >
-                  Registrarse
-                </Link>
-              </div>
-            </div>
-          )}
-        </div>
+        <SessionPanel status={sessionStatus} userEmail={userEmail} />
       </section>
 
-      <section
-        aria-label="Estadísticas de estudio"
-        className="mt-8 grid gap-4 sm:grid-cols-2 xl:grid-cols-4"
-      >
-        {stats.map((stat) => (
-          <article
-            key={stat.label}
-            className="rounded-lg border border-zinc-200 bg-white p-5 shadow-sm"
-          >
-            <p className="text-sm font-semibold text-zinc-600">{stat.label}</p>
-            <p className="mt-3 text-4xl font-bold tracking-normal text-zinc-950">
-              {stat.value}
-            </p>
-            <p className="mt-2 text-sm leading-6 text-zinc-500">
-              {stat.detail}
-            </p>
-          </article>
-        ))}
-      </section>
+      {statsContent}
 
       <section className="mt-6 grid gap-4 lg:grid-cols-[1.2fr_0.8fr]">
         <div className="rounded-lg border border-zinc-200 bg-white p-5 shadow-sm">
@@ -171,10 +97,10 @@ export function LandingDashboard({ userEmail }: LandingDashboardProps) {
 
         <aside className="rounded-lg border border-teal-200 bg-teal-50 p-5 text-teal-950">
           <p className="text-sm font-semibold uppercase tracking-wide text-teal-700">
-            Próximas stats
+            En desarrollo
           </p>
           <h2 className="mt-2 text-xl font-semibold">
-            Espacio reservado para métricas persistidas
+            Más contexto para tus sesiones
           </h2>
           <ul className="mt-4 space-y-2 text-sm leading-6">
             {futureStats.map((item) => (
@@ -185,6 +111,72 @@ export function LandingDashboard({ userEmail }: LandingDashboardProps) {
           </ul>
         </aside>
       </section>
+    </div>
+  );
+}
+
+function SessionPanel({
+  status,
+  userEmail,
+}: {
+  status: LandingDashboardProps["sessionStatus"];
+  userEmail?: string | null;
+}) {
+  if (status === "authenticated") {
+    return (
+      <div className="rounded-lg border border-zinc-200 bg-white p-4 shadow-sm">
+        <div className="grid gap-3">
+          <div>
+            <p className="text-sm font-semibold text-zinc-950">Sesión activa</p>
+            <p className="mt-1 text-sm text-zinc-600">
+              {userEmail ? `Logueado como: ${userEmail}` : "Usuario autenticado"}
+            </p>
+          </div>
+          <LogoutButton />
+        </div>
+      </div>
+    );
+  }
+
+  if (status === "unavailable") {
+    return (
+      <div className="rounded-lg border border-amber-200 bg-amber-50 p-4 text-amber-950 shadow-sm">
+        <p className="text-sm font-semibold">No pudimos validar tu sesión</p>
+        <p className="mt-1 max-w-xs text-sm leading-6">
+          No cerramos tu sesión. Puede ser una demora temporal de Supabase.
+        </p>
+        <SessionRetryButton
+          href="/"
+          className="mt-3 inline-flex rounded-md border border-amber-300 bg-white px-3 py-2 text-sm font-semibold transition hover:bg-amber-100 focus:outline-none focus:ring-2 focus:ring-amber-600 focus:ring-offset-2"
+        />
+      </div>
+    );
+  }
+
+  return (
+    <div className="rounded-lg border border-zinc-200 bg-white p-4 shadow-sm">
+      <div className="grid gap-3">
+        <div>
+          <p className="text-sm font-semibold text-zinc-950">Sin sesión</p>
+          <p className="mt-1 text-sm text-zinc-600">
+            Iniciá sesión para guardar tu progreso y tus materiales.
+          </p>
+        </div>
+        <div className="flex flex-wrap gap-2">
+          <Link
+            href="/login"
+            className="rounded-md bg-teal-700 px-4 py-2 text-sm font-semibold text-white transition hover:bg-teal-800 focus:outline-none focus:ring-2 focus:ring-teal-600 focus:ring-offset-2"
+          >
+            Iniciar sesión
+          </Link>
+          <Link
+            href="/register"
+            className="rounded-md border border-zinc-300 bg-white px-4 py-2 text-sm font-semibold text-zinc-900 transition hover:bg-zinc-100 focus:outline-none focus:ring-2 focus:ring-teal-600 focus:ring-offset-2"
+          >
+            Registrarse
+          </Link>
+        </div>
+      </div>
     </div>
   );
 }

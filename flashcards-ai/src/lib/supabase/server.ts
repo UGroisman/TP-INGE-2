@@ -1,5 +1,6 @@
 import { createServerClient } from "@supabase/ssr";
 import { cookies } from "next/headers";
+import { fetchWithSupabaseTimeout } from "@/lib/supabase/fetch";
 
 const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
 const supabaseKey = process.env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY;
@@ -17,6 +18,9 @@ export async function createClient() {
   const config = getSupabaseConfig();
 
   return createServerClient(config.supabaseUrl, config.supabaseKey, {
+    global: {
+      fetch: fetchWithSupabaseTimeout,
+    },
     cookies: {
       getAll() {
         return cookieStore.getAll();
