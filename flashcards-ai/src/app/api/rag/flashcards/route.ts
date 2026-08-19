@@ -1,14 +1,11 @@
-import {
-  flashcardSchema,
-  validateFlashcardsOutput,
-} from "@/features/flashcards/generation";
+import { generateFlashcardsWithRecovery } from "@/features/flashcards/generation.server";
 import {
   getAuthenticatedRagClient,
   retrieveRagContext,
   validateRagFlashcardsRequest,
 } from "@/features/rag/server";
 import { educationLevelLabels } from "@/features/study/types";
-import { chatWithOllamaJson, OllamaRequestError } from "@/lib/ollama";
+import { OllamaRequestError } from "@/lib/ollama";
 import { OllamaEmbeddingError } from "@/lib/rag/embeddings";
 
 export async function POST(request: Request) {
@@ -49,33 +46,25 @@ export async function POST(request: Request) {
       );
     }
 
-    const output = await chatWithOllamaJson({
-      schema: flashcardSchema,
-      messages: [
-        {
-          role: "system",
-          content:
-            "Sos un asistente educativo. Respondé solamente JSON válido en español y usá exclusivamente el material proporcionado.",
-        },
-        {
-          role: "user",
-          content: [
-            "Generá exactamente 10 flashcards educativas.",
-            `Tema solicitado: ${validation.topic}`,
-            `Nivel educativo: ${educationLevelLabels[validation.level]}`,
-            "Cada flashcard debe tener question y answer.",
-            "Todas las respuestas deben estar respaldadas directamente por el material.",
-            "No agregues conocimiento externo, suposiciones ni datos inventados.",
-            "No repitas preguntas y mantené las respuestas claras y breves.",
-            "MATERIAL RECUPERADO:",
-            retrieval.context,
-            "Respondé únicamente con un objeto JSON que cumpla este esquema:",
-            JSON.stringify(flashcardSchema),
-          ].join("\n\n"),
-        },
-      ],
+    const cards = await generateFlashcardsWithRecovery({
+      systemMessage:
+        "Sos un asistente educativo. Respondé solamente JSON válido en español y usá exclusivamente el material proporcionado.",
+      buildPrompt: ({
+        requestedCount,
+        excludedQuestions,
+        isRepair,
+        schema,
+      }) =>
+        buildPrompt(
+          validation.topic,
+          educationLevelLabels[validation.level],
+          retrieval.context,
+          requestedCount,
+          excludedQuestions,
+          isRepair,
+          schema,
+        ),
     });
-    const cards = validateFlashcardsOutput(output);
 
     if (!cards) {
       return Response.json(
@@ -98,4 +87,37 @@ export async function POST(request: Request) {
       { status: 500 },
     );
   }
+}
+
+function buildPrompt(
+  topic: string,
+  levelLabel: string,
+  context: string,
+  requestedCount: number,
+  excludedQuestions: string[],
+  isRepair: boolean,
+  schema: Record<string, unknown>,
+) {
+  return [
+    isRepair
+      ? `Generá exactamente ${requestedCount} flashcards nuevas para completar una generación anterior.`
+      : `Generá exactamente ${requestedCount} flashcards educativas candidatas.`,
+    `Tema solicitado: ${topic}`,
+    `Nivel educativo: ${levelLabel}`,
+    "Cada flashcard debe tener question y answer.",
+    "Todas las respuestas deben estar respaldadas directamente por el material.",
+    "No agregues conocimiento externo, suposiciones ni datos inventados.",
+    "No repitas preguntas y mantené las respuestas claras y breves.",
+    isRepair
+      ? `No uses ninguna de estas preguntas ya aceptadas:\n${excludedQuestions
+          .map((question) => `- ${question}`)
+          .join("\n")}`
+      : null,
+    "MATERIAL RECUPERADO:",
+    context,
+    "Respondé únicamente con un objeto JSON que cumpla este esquema:",
+    JSON.stringify(schema),
+  ]
+    .filter((line): line is string => line !== null)
+    .join("\n\n");
 }

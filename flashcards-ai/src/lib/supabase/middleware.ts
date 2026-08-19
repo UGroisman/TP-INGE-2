@@ -1,5 +1,6 @@
 import { createServerClient } from "@supabase/ssr";
 import { type NextRequest, NextResponse } from "next/server";
+import { logSupabaseAuthFailure } from "@/lib/supabase/authDiagnostics";
 import { fetchWithSupabaseTimeout } from "@/lib/supabase/fetch";
 
 const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
@@ -44,8 +45,13 @@ export async function updateSession(request: NextRequest) {
   });
 
   try {
-    await supabase.auth.getClaims();
-  } catch {
+    const { error } = await supabase.auth.getClaims();
+
+    if (error) {
+      logSupabaseAuthFailure("proxy-session-refresh", error);
+    }
+  } catch (error) {
+    logSupabaseAuthFailure("proxy-session-refresh", error);
     // Route-level auth handles temporary verification failures.
   }
 

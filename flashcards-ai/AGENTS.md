@@ -19,7 +19,7 @@ The app has these main sections:
 1. Inicio: a landing/dashboard with session state, real multiple-choice stats, and shortcuts to study modes.
 2. Flashcards: a student enters a topic and level, receives exactly 10 question/answer flashcards, and studies them one at a time.
 3. Opción múltiple: a student enters a topic, level, and question count, receives questions with four options, selects an answer, and sees whether it was correct.
-4. RAG con material: authenticated users load notes, select documents, and generate grounded flashcards or multiple-choice questions.
+4. RAG con material: authenticated users paste notes or upload PDF/TXT files, select documents, and generate grounded flashcards or multiple-choice questions.
 5. Study sets: authenticated users create study sets and save selected generated items into them.
 6. Autenticación: users register, log in, and log out with Supabase Auth.
 
@@ -31,6 +31,8 @@ The project may grow, but it should remain simple enough for an academic project
 
 Use Next.js App Router, React, TypeScript, Tailwind CSS, Ollama local API, Supabase Auth/database, and native `fetch`.
 
+Use Node.js 22 or newer because the PDF parser requires it.
+
 Do not add a separate backend or Express. Use Next.js Route Handlers under `src/app/api/`.
 
 ## AI Provider
@@ -39,7 +41,7 @@ Use Ollama through its local HTTP API.
 
 ```text
 OLLAMA_BASE_URL=http://localhost:11434
-OLLAMA_MODEL=gemma3:1b
+OLLAMA_MODEL=gemma3:4b
 OLLAMA_EMBEDDING_MODEL=nomic-embed-text
 ```
 
@@ -48,6 +50,8 @@ These variables are optional because the app uses those defaults when missing.
 `OLLAMA_MODEL` generates study content. `OLLAMA_EMBEDDING_MODEL` creates the 768-dimensional vectors used by RAG.
 
 Never call Ollama directly from the browser. The browser calls a Route Handler, and the Route Handler calls Ollama.
+
+Generation uses at most two Ollama calls. Flashcards request 12 candidates, keep the first 10 valid unique cards, and make one completion call only when needed. Multiple-choice requests the exact public count and makes one positional repair call only for invalid or duplicate questions, preserving each adaptive difficulty slot. Connectivity and missing-model errors are returned immediately instead of retried.
 
 For `nomic-embed-text`, prefix stored chunks with `search_document:` and retrieval queries with `search_query:`. Always use the same embedding model and dimension when indexing and searching.
 
@@ -230,7 +234,11 @@ The exact integer distributions for counts `5`, `10`, and `15` are generated ser
 
 ### RAG With Material
 
-RAG is authenticated and separate from normal generation. The first version accepts pasted text only.
+RAG is authenticated and separate from normal generation. Materials can come from pasted text, a UTF-8 TXT file, or a PDF with selectable text.
+
+File extraction is server-side only. Use `unpdf` for PDF text extraction and never parse documents in Client Components. PDF uploads are limited to 5 MB, 50 pages, 50,000 extracted characters, and 60 chunks. PDF text extraction must enforce a 15-second timeout and release PDF resources afterward.
+
+OCR and scanned-image PDF support are out of scope. Return a useful error when a PDF does not contain enough selectable text. Do not store original PDF or TXT binaries in Supabase Storage; discard them after extraction and persist only the existing document metadata, chunks, and embeddings.
 
 Split material into 1,000-character chunks with 150-character overlap. Generate embeddings in batch through Ollama `/api/embed`, validate exactly 768 finite numbers per chunk, and persist them in Supabase pgvector.
 
@@ -296,7 +304,7 @@ Keep Ollama output types separate from enriched API question types: Ollama retur
 * `GET /api/study-sets/[id]`: return one owned set and its content.
 * `POST /api/study-sets/[id]/flashcards`: save one card.
 * `POST /api/study-sets/[id]/multiple-choice`: save one question and its four options.
-* `GET|POST /api/rag/documents`: list or create owned materials.
+* `GET|POST /api/rag/documents`: list or create owned materials; `POST` accepts JSON for pasted text or multipart form data for PDF/TXT uploads.
 * `DELETE /api/rag/documents/[id]`: delete one owned document and its chunks.
 * `POST /api/rag/flashcards`: generate 10 grounded cards.
 * `POST /api/rag/multiple-choice`: generate grounded adaptive questions and return `trackingEnabled: true`.
@@ -305,7 +313,7 @@ Keep Ollama output types separate from enriched API question types: Ollama retur
 
 Validate client and server input. Topics and study-set names are trimmed and 3-100 characters. Level is `primary`, `secondary`, or `university`. Count is `5`, `10`, or `15`.
 
-RAG material names are 3-100 characters. Content is 100-50,000 characters and produces at most 60 chunks. RAG generation receives 1-10 unique owned document UUIDs.
+RAG material names are 3-100 characters. Pasted or extracted content is 100-50,000 characters and produces at most 60 chunks. File uploads accept only `.pdf` and `.txt`; validate size, extension, MIME type, PDF signature, PDF page count, and UTF-8 decoding server-side. RAG generation receives 1-10 unique owned document UUIDs.
 
 Treat AI output as untrusted. Require Spanish, the requested topic and level, no duplicate questions/options, concise content, exactly four options, and a valid correct index. Prefer Ollama structured JSON and never parse prose with regex.
 
@@ -323,7 +331,7 @@ Adaptive metrics are self-study telemetry, not tamper-proof credentials. If veri
 
 ## Dependencies And Style
 
-Keep dependencies minimal. Allowed persistence/auth packages are `@supabase/supabase-js` and `@supabase/ssr`. Prefer native `fetch`, React state, Route Handlers, Tailwind, and existing helpers.
+Keep dependencies minimal. Allowed persistence/auth packages are `@supabase/supabase-js` and `@supabase/ssr`; `unpdf` is the only document-parsing dependency. Prefer native `fetch`, React state, Route Handlers, Tailwind, and existing helpers.
 
 Prefer simple, readable code that the repository owner can explain. Avoid unrelated rewrites and unnecessary abstractions.
 
@@ -344,7 +352,7 @@ For authentication changes, verify that `src/` contains no `auth.getUser()` rout
 
 ## Definition Of Done
 
-The app is complete when auth, normal generation, RAG, study sets, and individual saving continue working; authenticated normal and RAG answers are persisted idempotently; difficulty mixes follow mastery thresholds; anonymous quizzes remain public and untracked; landing stats are real; temporary Auth failures preserve the session and offer retry; RLS isolates users; invalid input and AI output are rejected; retries work; and lint/build succeed.
+The app is complete when auth, normal generation, RAG from pasted text/PDF/TXT, study sets, and individual saving continue working; authenticated normal and RAG answers are persisted idempotently; difficulty mixes follow mastery thresholds; anonymous quizzes remain public and untracked; landing stats are real; temporary Auth failures preserve the session and offer retry; RLS isolates users; invalid input and AI output are rejected; retries work; and lint/build succeed.
 
 ## Core Flows
 

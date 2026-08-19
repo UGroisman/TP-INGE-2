@@ -1,13 +1,10 @@
-import { chatWithOllamaJson, OllamaRequestError } from "@/lib/ollama";
-import {
-  flashcardSchema,
-  validateFlashcardsOutput,
-} from "@/features/flashcards/generation";
+import { generateFlashcardsWithRecovery } from "@/features/flashcards/generation.server";
 import {
   educationLevelLabels,
   isEducationLevel,
   type EducationLevel,
 } from "@/features/study/types";
+import { OllamaRequestError } from "@/lib/ollama";
 
 export async function POST(request: Request) {
   let body: unknown;
@@ -28,21 +25,24 @@ export async function POST(request: Request) {
   }
 
   try {
-    const parsedOutput = await chatWithOllamaJson({
-      schema: flashcardSchema,
-      messages: [
-        {
-          role: "system",
-          content:
-            "Sos un asistente educativo. Respondé solamente JSON válido en español.",
-        },
-        {
-          role: "user",
-          content: buildPrompt(validation.topic, validation.level),
-        },
-      ],
+    const cards = await generateFlashcardsWithRecovery({
+      systemMessage:
+        "Sos un asistente educativo. Respondé solamente JSON válido en español.",
+      buildPrompt: ({
+        requestedCount,
+        excludedQuestions,
+        isRepair,
+        schema,
+      }) =>
+        buildPrompt(
+          validation.topic,
+          validation.level,
+          requestedCount,
+          excludedQuestions,
+          isRepair,
+          schema,
+        ),
     });
-    const cards = validateFlashcardsOutput(parsedOutput);
 
     if (!cards) {
       return Response.json(
@@ -64,9 +64,18 @@ export async function POST(request: Request) {
   }
 }
 
-function buildPrompt(topic: string, level: EducationLevel) {
+function buildPrompt(
+  topic: string,
+  level: EducationLevel,
+  requestedCount: number,
+  excludedQuestions: string[],
+  isRepair: boolean,
+  schema: Record<string, unknown>,
+) {
   return [
-    "Generá exactamente 10 flashcards educativas.",
+    isRepair
+      ? `Generá exactamente ${requestedCount} flashcards nuevas para completar una generación anterior.`
+      : `Generá exactamente ${requestedCount} flashcards educativas candidatas.`,
     `Tema: ${topic}`,
     `Nivel educativo: ${educationLevelLabels[level]}`,
     "Idioma: español.",
@@ -74,10 +83,17 @@ function buildPrompt(topic: string, level: EducationLevel) {
     "Las preguntas deben evaluar comprensión, no memorización mecánica.",
     "Las respuestas deben ser claras, breves y adecuadas al nivel.",
     "No repitas preguntas.",
+    isRepair
+      ? `No uses ninguna de estas preguntas ya aceptadas:\n${excludedQuestions
+          .map((question) => `- ${question}`)
+          .join("\n")}`
+      : null,
     "Mantenete estrictamente dentro del tema pedido.",
     "Respondé únicamente con un objeto JSON que cumpla este esquema:",
-    JSON.stringify(flashcardSchema),
-  ].join("\n");
+    JSON.stringify(schema),
+  ]
+    .filter((line): line is string => line !== null)
+    .join("\n");
 }
 
 function validateRequestBody(body: unknown):

@@ -5,6 +5,7 @@ import {
   type AuthError,
   type SupabaseClient,
 } from "@supabase/supabase-js";
+import { logSupabaseAuthFailure } from "@/lib/supabase/authDiagnostics";
 import { createClient } from "@/lib/supabase/server";
 
 export interface AuthenticatedUser {
@@ -40,9 +41,12 @@ export async function getServerAuthState(): Promise<ServerAuthState> {
     const { data, error } = await supabase.auth.getClaims();
 
     if (error) {
-      return isUnauthenticatedError(error)
-        ? { status: "anonymous", supabase }
-        : { status: "unavailable" };
+      if (isUnauthenticatedError(error)) {
+        return { status: "anonymous", supabase };
+      }
+
+      logSupabaseAuthFailure("server-auth-state", error);
+      return { status: "unavailable" };
     }
 
     const claims = data?.claims;
@@ -59,7 +63,8 @@ export async function getServerAuthState(): Promise<ServerAuthState> {
         email: typeof claims.email === "string" ? claims.email : null,
       },
     };
-  } catch {
+  } catch (error) {
+    logSupabaseAuthFailure("server-auth-state", error);
     return { status: "unavailable" };
   }
 }

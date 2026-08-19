@@ -1,9 +1,19 @@
 import {
   getAuthenticatedRagClient,
   toRagDocument,
+  validateRagDocumentContent,
   validateRagDocumentInput,
+  validateRagDocumentName,
 } from "@/features/rag/server";
+import {
+  ragDocumentContentMinLength,
+  ragFileMaxSizeBytes,
+} from "@/features/rag/constants";
 import { splitIntoChunks, maxRagChunks } from "@/lib/rag/chunks";
+import {
+  extractRagFileText,
+  RagFileError,
+} from "@/lib/rag/documentText";
 import {
   createEmbeddings,
   getOllamaEmbeddingModel,
@@ -17,6 +27,12 @@ interface RagDocumentRow {
   chunk_count: number;
   created_at: string;
 }
+
+type RagDocumentInput =
+  | { ok: true; name: string; content: string; source: "text" | "file" }
+  | { ok: false; error: string; status: 400 | 413 | 415 | 422 };
+
+const multipartRequestOverheadBytes = 256 * 1024;
 
 export async function GET() {
   const auth = await getAuthenticatedRagClient();
@@ -49,29 +65,18 @@ export async function POST(request: Request) {
     return Response.json({ error: auth.error }, { status: auth.status });
   }
 
-  let body: unknown;
+  const input = await readRagDocumentInput(request);
 
-  try {
-    body = await request.json();
-  } catch {
-    return Response.json(
-      { error: "El cuerpo de la solicitud debe ser JSON válido." },
-      { status: 400 },
-    );
+  if (!input.ok) {
+    return Response.json({ error: input.error }, { status: input.status });
   }
 
-  const validation = validateRagDocumentInput(body);
-
-  if (!validation.ok) {
-    return Response.json({ error: validation.error }, { status: 400 });
-  }
-
-  const chunks = splitIntoChunks(validation.content);
+  const chunks = splitIntoChunks(input.content);
 
   if (chunks.length === 0 || chunks.length > maxRagChunks) {
     return Response.json(
       { error: "El material debe generar entre 1 y 60 fragmentos." },
-      { status: 400 },
+      { status: input.source === "file" ? 422 : 400 },
     );
   }
 
@@ -84,7 +89,7 @@ export async function POST(request: Request) {
       .insert({
         id: documentId,
         user_id: auth.user.id,
-        name: validation.name,
+        name: input.name,
         embedding_model: embeddingModel,
         chunk_count: chunks.length,
       })
@@ -132,4 +137,130 @@ export async function POST(request: Request) {
       { status: 500 },
     );
   }
+}
+
+async function readRagDocumentInput(request: Request): Promise<RagDocumentInput> {
+  const contentType = request.headers
+    .get("content-type")
+    ?.split(";", 1)[0]
+    .trim()
+    .toLowerCase();
+
+  if (contentType === "application/json") {
+    return readJsonInput(request);
+  }
+
+  if (contentType === "multipart/form-data") {
+    return readFileInput(request);
+  }
+
+  return {
+    ok: false,
+    status: 415,
+    error: "La solicitud debe enviar texto JSON o un archivo PDF/TXT.",
+  };
+}
+
+async function readJsonInput(request: Request): Promise<RagDocumentInput> {
+  let body: unknown;
+
+  try {
+    body = await request.json();
+  } catch {
+    return {
+      ok: false,
+      status: 400,
+      error: "El cuerpo de la solicitud debe ser JSON válido.",
+    };
+  }
+
+  const validation = validateRagDocumentInput(body);
+
+  if (!validation.ok) {
+    return { ok: false, status: 400, error: validation.error };
+  }
+
+  return { ...validation, source: "text" };
+}
+
+async function readFileInput(request: Request): Promise<RagDocumentInput> {
+  const contentLength = Number(request.headers.get("content-length"));
+
+  if (
+    Number.isFinite(contentLength) &&
+    contentLength > ragFileMaxSizeBytes + multipartRequestOverheadBytes
+  ) {
+    return {
+      ok: false,
+      status: 413,
+      error: "El archivo no puede superar los 5 MB.",
+    };
+  }
+
+  let formData: FormData;
+
+  try {
+    formData = await request.formData();
+  } catch {
+    return {
+      ok: false,
+      status: 400,
+      error: "No pudimos leer el formulario del archivo.",
+    };
+  }
+
+  const nameValidation = validateRagDocumentName(formData.get("name"));
+
+  if (!nameValidation.ok) {
+    return { ok: false, status: 400, error: nameValidation.error };
+  }
+
+  const file = formData.get("file");
+
+  if (!(file instanceof File)) {
+    return {
+      ok: false,
+      status: 400,
+      error: "Seleccioná un archivo PDF o TXT.",
+    };
+  }
+
+  let extractedContent: string;
+
+  try {
+    extractedContent = await extractRagFileText(file);
+  } catch (error) {
+    if (error instanceof RagFileError) {
+      return { ok: false, status: error.status, error: error.message };
+    }
+
+    return {
+      ok: false,
+      status: 422,
+      error: "No pudimos extraer el texto del archivo.",
+    };
+  }
+
+  const contentValidation = validateRagDocumentContent(extractedContent);
+
+  if (!contentValidation.ok) {
+    const isPdf = file.name.toLowerCase().endsWith(".pdf");
+    const hasInsufficientPdfText =
+      isPdf && extractedContent.length < ragDocumentContentMinLength;
+
+    return {
+      ok: false,
+      status: 422,
+      error: hasInsufficientPdfText
+        ? "El PDF no contiene suficiente texto seleccionable. Esta versión no incluye OCR."
+        : contentValidation.error,
+    };
+  }
+
+  return {
+    ok: true,
+    name: nameValidation.name,
+    content: contentValidation.content,
+    source: "file",
+  };
 }

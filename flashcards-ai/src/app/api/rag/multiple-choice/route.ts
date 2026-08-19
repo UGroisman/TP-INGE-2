@@ -4,17 +4,15 @@ import {
   enrichMultipleChoiceQuestions,
   getDifficultyPlan,
 } from "@/features/adaptive-learning/server";
-import {
-  buildMultipleChoiceSchema,
-  validateQuestionsOutput,
-} from "@/features/multiple-choice/generation";
+import type { AdaptiveDifficulty } from "@/features/adaptive-learning/types";
+import { generateMultipleChoiceWithRecovery } from "@/features/multiple-choice/generation.server";
 import {
   getAuthenticatedRagClient,
   retrieveRagContext,
   validateRagMultipleChoiceRequest,
 } from "@/features/rag/server";
 import { educationLevelLabels } from "@/features/study/types";
-import { chatWithOllamaJson, OllamaRequestError } from "@/lib/ollama";
+import { OllamaRequestError } from "@/lib/ollama";
 import { OllamaEmbeddingError } from "@/lib/rag/embeddings";
 
 export async function POST(request: Request) {
@@ -61,39 +59,29 @@ export async function POST(request: Request) {
       );
     }
 
-    const schema = buildMultipleChoiceSchema(validation.count);
-    const output = await chatWithOllamaJson({
-      schema,
-      messages: [
-        {
-          role: "system",
-          content:
-            "Sos un asistente educativo. Respondé solamente JSON válido en español y usá exclusivamente el material proporcionado.",
-        },
-        {
-          role: "user",
-          content: [
-            `Generá exactamente ${validation.count} preguntas educativas de opción múltiple.`,
-            `Tema solicitado: ${validation.topic}`,
-            `Nivel educativo: ${educationLevelLabels[validation.level]}`,
-            buildDifficultyInstructions(difficultyPlan),
-            "Cada pregunta debe tener question, cuatro options y correctOptionIndex.",
-            "Todas las respuestas correctas deben estar respaldadas directamente por el material.",
-            "No agregues conocimiento externo, suposiciones ni datos inventados.",
-            "Las opciones incorrectas deben ser plausibles y no pueden repetirse.",
-            "No repitas preguntas.",
-            "MATERIAL RECUPERADO:",
-            retrieval.context,
-            "Respondé únicamente con un objeto JSON que cumpla este esquema:",
-            JSON.stringify(schema),
-          ].join("\n\n"),
-        },
-      ],
+    const questionContent = await generateMultipleChoiceWithRecovery({
+      count: validation.count,
+      difficultyPlan,
+      systemMessage:
+        "Sos un asistente educativo. Respondé solamente JSON válido en español y usá exclusivamente el material proporcionado.",
+      buildPrompt: ({
+        requestedCount,
+        difficultyPlan: requestedDifficultyPlan,
+        excludedQuestions,
+        isRepair,
+        schema,
+      }) =>
+        buildPrompt(
+          validation.topic,
+          educationLevelLabels[validation.level],
+          retrieval.context,
+          requestedCount,
+          requestedDifficultyPlan,
+          excludedQuestions,
+          isRepair,
+          schema,
+        ),
     });
-    const questionContent = validateQuestionsOutput(
-      output,
-      validation.count,
-    );
 
     if (!questionContent) {
       return Response.json(
@@ -125,4 +113,40 @@ export async function POST(request: Request) {
       { status: 500 },
     );
   }
+}
+
+function buildPrompt(
+  topic: string,
+  levelLabel: string,
+  context: string,
+  requestedCount: number,
+  difficultyPlan: AdaptiveDifficulty[],
+  excludedQuestions: string[],
+  isRepair: boolean,
+  schema: Record<string, unknown>,
+) {
+  return [
+    isRepair
+      ? `Generá exactamente ${requestedCount} preguntas nuevas para reemplazar preguntas inválidas de una generación anterior.`
+      : `Generá exactamente ${requestedCount} preguntas educativas de opción múltiple.`,
+    `Tema solicitado: ${topic}`,
+    `Nivel educativo: ${levelLabel}`,
+    buildDifficultyInstructions(difficultyPlan),
+    "Cada pregunta debe tener question, cuatro options y correctOptionIndex.",
+    "Todas las respuestas correctas deben estar respaldadas directamente por el material.",
+    "No agregues conocimiento externo, suposiciones ni datos inventados.",
+    "Las opciones incorrectas deben ser plausibles y no pueden repetirse.",
+    "No repitas preguntas.",
+    isRepair
+      ? `No uses ninguna de estas preguntas ya aceptadas:\n${excludedQuestions
+          .map((question) => `- ${question}`)
+          .join("\n")}`
+      : null,
+    "MATERIAL RECUPERADO:",
+    context,
+    "Respondé únicamente con un objeto JSON que cumpla este esquema:",
+    JSON.stringify(schema),
+  ]
+    .filter((line): line is string => line !== null)
+    .join("\n\n");
 }

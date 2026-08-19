@@ -33,7 +33,7 @@ export function getOllamaBaseUrl() {
 }
 
 export function getOllamaModel() {
-  return process.env.OLLAMA_MODEL ?? "gemma3:1b";
+  return process.env.OLLAMA_MODEL ?? "gemma3:4b";
 }
 
 export async function chatWithOllamaJson({

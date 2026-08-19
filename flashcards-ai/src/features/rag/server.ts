@@ -64,16 +64,37 @@ export function validateRagDocumentInput(body: unknown):
     return { ok: false, error: "La solicitud debe incluir nombre y contenido." };
   }
 
-  if (!("name" in body) || typeof body.name !== "string") {
+  const nameValidation = validateRagDocumentName(
+    "name" in body ? body.name : undefined,
+  );
+
+  if (!nameValidation.ok) {
+    return nameValidation;
+  }
+
+  const contentValidation = validateRagDocumentContent(
+    "content" in body ? body.content : undefined,
+  );
+
+  if (!contentValidation.ok) {
+    return contentValidation;
+  }
+
+  return {
+    ok: true,
+    name: nameValidation.name,
+    content: contentValidation.content,
+  };
+}
+
+export function validateRagDocumentName(value: unknown):
+  | { ok: true; name: string }
+  | { ok: false; error: string } {
+  if (typeof value !== "string") {
     return { ok: false, error: "El nombre del material debe ser texto." };
   }
 
-  if (!("content" in body) || typeof body.content !== "string") {
-    return { ok: false, error: "El contenido del material debe ser texto." };
-  }
-
-  const name = body.name.trim();
-  const content = body.content.trim();
+  const name = value.trim();
 
   if (
     name.length < ragDocumentNameMinLength ||
@@ -85,6 +106,18 @@ export function validateRagDocumentInput(body: unknown):
     };
   }
 
+  return { ok: true, name };
+}
+
+export function validateRagDocumentContent(value: unknown):
+  | { ok: true; content: string }
+  | { ok: false; error: string } {
+  if (typeof value !== "string") {
+    return { ok: false, error: "El contenido del material debe ser texto." };
+  }
+
+  const content = value.trim();
+
   if (
     content.length < ragDocumentContentMinLength ||
     content.length > ragDocumentContentMaxLength
@@ -95,7 +128,7 @@ export function validateRagDocumentInput(body: unknown):
     };
   }
 
-  return { ok: true, name, content };
+  return { ok: true, content };
 }
 
 export function validateRagFlashcardsRequest(body: unknown) {

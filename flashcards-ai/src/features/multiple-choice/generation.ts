@@ -41,7 +41,7 @@ const multipleChoiceSchema = {
   required: ["questions"],
 };
 
-export function buildMultipleChoiceSchema(count: QuestionCount) {
+export function buildMultipleChoiceSchema(count: number) {
   return {
     ...multipleChoiceSchema,
     properties: {
@@ -59,43 +59,45 @@ export function validateQuestionsOutput(
   output: unknown,
   count: QuestionCount,
 ): MultipleChoiceContent[] | null {
-  if (
-    typeof output !== "object" ||
-    output === null ||
-    !("questions" in output)
-  ) {
-    return null;
-  }
-
-  const questions = output.questions;
+  const questions = getQuestions(output);
 
   if (!Array.isArray(questions) || questions.length !== count) {
     return null;
   }
 
-  const normalizedQuestions = new Set<string>();
-  const validQuestions: MultipleChoiceContent[] = [];
+  const slots = collectQuestionSlots(output, count);
 
-  for (const question of questions) {
-    if (!isValidQuestion(question)) {
+  return slots.every((question) => question !== null)
+    ? (slots as MultipleChoiceContent[])
+    : null;
+}
+
+export function collectQuestionSlots(
+  output: unknown,
+  count: number,
+  excludedQuestions: string[] = [],
+): Array<MultipleChoiceContent | null> {
+  const questions = getQuestions(output);
+  const normalizedQuestions = new Set(
+    excludedQuestions.map(normalizeGeneratedQuestion),
+  );
+
+  return Array.from({ length: count }, (_, index) => {
+    const question = parseQuestion(questions?.[index]);
+
+    if (!question) {
       return null;
     }
 
-    const normalizedQuestion = question.question.trim().toLocaleLowerCase("es");
+    const normalizedQuestion = normalizeGeneratedQuestion(question.question);
 
     if (normalizedQuestions.has(normalizedQuestion)) {
       return null;
     }
 
     normalizedQuestions.add(normalizedQuestion);
-    validQuestions.push({
-      question: question.question.trim(),
-      options: question.options.map((option) => option.trim()),
-      correctOptionIndex: question.correctOptionIndex,
-    });
-  }
-
-  return validQuestions;
+    return question;
+  });
 }
 
 function isValidQuestion(value: unknown): value is MultipleChoiceContent {
@@ -157,9 +159,7 @@ export function validateMultipleChoiceResponse(
       return null;
     }
 
-    const normalizedQuestion = value.question
-      .trim()
-      .toLocaleLowerCase("es");
+    const normalizedQuestion = normalizeGeneratedQuestion(value.question);
 
     if (normalizedQuestions.has(normalizedQuestion)) {
       return null;
@@ -190,7 +190,7 @@ function areValidOptions(value: unknown) {
       return false;
     }
 
-    const normalizedOption = option.trim().toLocaleLowerCase("es");
+    const normalizedOption = normalizeGeneratedQuestion(option);
 
     if (normalizedOptions.has(normalizedOption)) {
       return false;
@@ -200,6 +200,35 @@ function areValidOptions(value: unknown) {
   }
 
   return true;
+}
+
+function getQuestions(output: unknown): unknown[] | null {
+  if (
+    typeof output !== "object" ||
+    output === null ||
+    !("questions" in output) ||
+    !Array.isArray(output.questions)
+  ) {
+    return null;
+  }
+
+  return output.questions;
+}
+
+function parseQuestion(value: unknown): MultipleChoiceContent | null {
+  if (!isValidQuestion(value)) {
+    return null;
+  }
+
+  return {
+    question: value.question.trim(),
+    options: value.options.map((option) => option.trim()),
+    correctOptionIndex: value.correctOptionIndex,
+  };
+}
+
+function normalizeGeneratedQuestion(value: string) {
+  return value.trim().toLocaleLowerCase("es").replace(/\s+/g, " ");
 }
 
 function isUuid(value: string) {

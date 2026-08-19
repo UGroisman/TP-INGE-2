@@ -26,8 +26,8 @@ export default async function RagDocumentsPage() {
           Prepará tus fuentes de estudio
         </h1>
         <p className="mt-3 text-base leading-7 text-zinc-600">
-          Pegá tus apuntes para convertirlos en fragmentos semánticos y usarlos
-          como única fuente al generar contenido.
+          Pegá tus apuntes o subí un PDF/TXT para convertirlo en fragmentos
+          semánticos y usarlo como única fuente al generar contenido.
         </p>
       </header>
 

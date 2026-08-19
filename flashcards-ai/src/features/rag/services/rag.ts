@@ -21,13 +21,34 @@ export async function getRagDocuments() {
   return data.documents;
 }
 
-export async function createRagDocument(name: string, content: string) {
+export async function createRagDocumentFromText(
+  name: string,
+  content: string,
+) {
   const response = await fetch("/api/rag/documents", {
     method: "POST",
     headers: {
       "Content-Type": "application/json",
     },
     body: JSON.stringify({ name, content }),
+  });
+  const data = await readResponse(response);
+
+  if (!isRagDocumentResponse(data)) {
+    throw new Error("El material creado no tiene el formato esperado.");
+  }
+
+  return data.document;
+}
+
+export async function createRagDocumentFromFile(name: string, file: File) {
+  const formData = new FormData();
+  formData.set("name", name);
+  formData.set("file", file);
+
+  const response = await fetch("/api/rag/documents", {
+    method: "POST",
+    body: formData,
   });
   const data = await readResponse(response);
 
