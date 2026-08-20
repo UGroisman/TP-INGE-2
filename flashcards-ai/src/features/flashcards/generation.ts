@@ -1,7 +1,14 @@
 import type { Flashcard } from "@/features/flashcards/types";
 
 export const flashcardCount = 10;
-export const flashcardCandidateCount = 12;
+
+const flashcardQuestionSafetyMaxLength = 500;
+const flashcardAnswerSafetyMaxLength = 1_000;
+
+interface GeneratedFlashcard {
+  q: string;
+  a: string;
+}
 
 export function buildFlashcardSchema(count: number) {
   return {
@@ -16,16 +23,18 @@ export function buildFlashcardSchema(count: number) {
           type: "object",
           additionalProperties: false,
           properties: {
-            question: {
+            q: {
               type: "string",
               minLength: 1,
+              maxLength: flashcardQuestionSafetyMaxLength,
             },
-            answer: {
+            a: {
               type: "string",
               minLength: 1,
+              maxLength: flashcardAnswerSafetyMaxLength,
             },
           },
-          required: ["question", "answer"],
+          required: ["q", "a"],
         },
       },
     },
@@ -33,35 +42,36 @@ export function buildFlashcardSchema(count: number) {
   };
 }
 
-export const flashcardSchema = buildFlashcardSchema(flashcardCount);
-
 export function validateFlashcardsOutput(output: unknown): Flashcard[] | null {
-  if (typeof output !== "object" || output === null || !("cards" in output)) {
+  const cards = getArrayProperty(output, "cards");
+
+  if (!cards || cards.length !== flashcardCount) {
     return null;
   }
 
-  const cards = output.cards;
+  const normalizedQuestions = new Set<string>();
+  const validCards: Flashcard[] = [];
 
-  if (!Array.isArray(cards) || cards.length !== flashcardCount) {
-    return null;
+  for (const value of cards) {
+    const card = parsePublicFlashcard(value);
+
+    if (!card || !addUniqueQuestion(card.question, normalizedQuestions)) {
+      return null;
+    }
+
+    validCards.push(card);
   }
 
-  const validCards = collectValidFlashcards(output);
-
-  return validCards.length === flashcardCount ? validCards : null;
+  return validCards;
 }
 
-export function collectValidFlashcards(
+export function collectValidGeneratedFlashcards(
   output: unknown,
   excludedQuestions: string[] = [],
 ): Flashcard[] {
-  if (typeof output !== "object" || output === null || !("cards" in output)) {
-    return [];
-  }
+  const cards = getArrayProperty(output, "cards");
 
-  const cards = output.cards;
-
-  if (!Array.isArray(cards)) {
+  if (!cards) {
     return [];
   }
 
@@ -70,39 +80,94 @@ export function collectValidFlashcards(
   );
   const validCards: Flashcard[] = [];
 
-  for (const card of cards) {
-    if (!isValidFlashcard(card)) {
+  for (const value of cards) {
+    const generatedCard = parseGeneratedFlashcard(value);
+
+    if (
+      !generatedCard ||
+      !addUniqueQuestion(generatedCard.q, normalizedQuestions)
+    ) {
       continue;
     }
 
-    const question = card.question.trim();
-    const answer = card.answer.trim();
-    const normalizedQuestion = normalizeGeneratedQuestion(question);
-
-    if (normalizedQuestions.has(normalizedQuestion)) {
-      continue;
-    }
-
-    normalizedQuestions.add(normalizedQuestion);
-    validCards.push({ question, answer });
+    validCards.push({
+      question: generatedCard.q,
+      answer: generatedCard.a,
+    });
   }
 
   return validCards;
+}
+
+export function getGeneratedFlashcardCount(output: unknown) {
+  return getArrayProperty(output, "cards")?.length ?? 0;
+}
+
+function parseGeneratedFlashcard(value: unknown): GeneratedFlashcard | null {
+  if (
+    typeof value !== "object" ||
+    value === null ||
+    !("q" in value) ||
+    !("a" in value) ||
+    !isSafeText(value.q, flashcardQuestionSafetyMaxLength) ||
+    !isSafeText(value.a, flashcardAnswerSafetyMaxLength)
+  ) {
+    return null;
+  }
+
+  return { q: value.q.trim(), a: value.a.trim() };
+}
+
+function parsePublicFlashcard(value: unknown): Flashcard | null {
+  if (
+    typeof value !== "object" ||
+    value === null ||
+    !("question" in value) ||
+    !("answer" in value) ||
+    !isSafeText(value.question, flashcardQuestionSafetyMaxLength) ||
+    !isSafeText(value.answer, flashcardAnswerSafetyMaxLength)
+  ) {
+    return null;
+  }
+
+  return {
+    question: value.question.trim(),
+    answer: value.answer.trim(),
+  };
+}
+
+function getArrayProperty(value: unknown, property: string) {
+  if (
+    typeof value !== "object" ||
+    value === null ||
+    !(property in value)
+  ) {
+    return null;
+  }
+
+  const candidate = (value as Record<string, unknown>)[property];
+  return Array.isArray(candidate) ? candidate : null;
+}
+
+function addUniqueQuestion(question: string, questions: Set<string>) {
+  const normalizedQuestion = normalizeGeneratedQuestion(question);
+
+  if (questions.has(normalizedQuestion)) {
+    return false;
+  }
+
+  questions.add(normalizedQuestion);
+  return true;
 }
 
 function normalizeGeneratedQuestion(question: string) {
   return question.trim().toLocaleLowerCase("es").replace(/\s+/g, " ");
 }
 
-function isValidFlashcard(value: unknown): value is Flashcard {
+function isSafeText(value: unknown, maxLength: number): value is string {
   return (
-    typeof value === "object" &&
-    value !== null &&
-    "question" in value &&
-    "answer" in value &&
-    typeof value.question === "string" &&
-    value.question.trim().length > 0 &&
-    typeof value.answer === "string" &&
-    value.answer.trim().length > 0
+    typeof value === "string" &&
+    value.trim().length > 0 &&
+    value.trim().length <= maxLength
   );
 }

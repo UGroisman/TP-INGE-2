@@ -49,9 +49,15 @@ These variables are optional because the app uses those defaults when missing.
 
 `OLLAMA_MODEL` generates study content. `OLLAMA_EMBEDDING_MODEL` creates the 768-dimensional vectors used by RAG.
 
+On Windows, hardware acceleration is configured on the Ollama process, not in the Next.js environment. The current development machine detects its Radeon iGPU through Vulkan, but measured substantially worse latency with `OLLAMA_IGPU_ENABLE=1`; leave that variable unset here. CPU inference with `OLLAMA_FLASH_ATTENTION=1` is the measured local default. Do not add either variable to `.env.local` or `.env.example`; teammates must benchmark and tune Ollama for their own hardware.
+
 Never call Ollama directly from the browser. The browser calls a Route Handler, and the Route Handler calls Ollama.
 
-Generation uses at most two Ollama calls. Flashcards request 12 candidates, keep the first 10 valid unique cards, and make one completion call only when needed. Multiple-choice requests the exact public count and makes one positional repair call only for invalid or duplicate questions, preserving each adaptive difficulty slot. Connectivity and missing-model errors are returned immediately instead of retried.
+Generation uses at most two Ollama calls. Flashcards request exactly 10 cards and make one completion call only when invalid or duplicate cards leave missing positions. Multiple-choice requests the exact public count and makes one positional repair call only for invalid or duplicate questions, preserving each adaptive difficulty slot. Connectivity and missing-model errors are returned immediately instead of retried.
+
+Send the JSON schema through Ollama's `format` field only; do not duplicate it in the prompt. The internal model format uses compact keys (`q`/`a` for flashcards and `q`/`o`/`c` for multiple choice) and must be mapped back to the unchanged public API types on the server. Request compact JSON without indentation.
+
+Do not override the generation model's `keep_alive`; respect the Ollama server default, which is five minutes on the current machine. Embedding requests use `keep_alive: 0` so `nomic-embed-text` is unloaded before Gemma generation. Bound output with `num_predict`: `100 + 80 * count` for flashcards and `100 + 90 * count` for multiple choice, including repair calls. Development diagnostics may record durations, token counts, requested/received/accepted/discarded counts, and whether repair ran, but never prompts, retrieved material, generated content, credentials, or user data.
 
 For `nomic-embed-text`, prefix stored chunks with `search_document:` and retrieval queries with `search_query:`. Always use the same embedding model and dimension when indexing and searching.
 
@@ -242,7 +248,7 @@ OCR and scanned-image PDF support are out of scope. Return a useful error when a
 
 Split material into 1,000-character chunks with 150-character overlap. Generate embeddings in batch through Ollama `/api/embed`, validate exactly 768 finite numbers per chunk, and persist them in Supabase pgvector.
 
-Users can select 1-10 owned documents. Retrieval returns at most 8 chunks with similarity at least `0.30` and respects RLS. RAG prompts use only retrieved context and must not invent unsupported answers.
+Users can select 1-10 owned documents. Retrieval considers at most 8 chunks with similarity at least `0.30` and respects RLS. Pack complete chunks in similarity order into a prompt budget of at most 4,500 characters; never truncate an individual chunk. RAG prompts use only this retrieved context and must not invent unsupported answers.
 
 RAG generates exactly 10 flashcards or `5`, `10`, or `15` multiple-choice questions. RAG multiple-choice uses the same adaptive difficulty engine and attempt history as standard multiple-choice.
 
@@ -315,7 +321,7 @@ Validate client and server input. Topics and study-set names are trimmed and 3-1
 
 RAG material names are 3-100 characters. Pasted or extracted content is 100-50,000 characters and produces at most 60 chunks. File uploads accept only `.pdf` and `.txt`; validate size, extension, MIME type, PDF signature, PDF page count, and UTF-8 decoding server-side. RAG generation receives 1-10 unique owned document UUIDs.
 
-Treat AI output as untrusted. Require Spanish, the requested topic and level, no duplicate questions/options, concise content, exactly four options, and a valid correct index. Prefer Ollama structured JSON and never parse prose with regex.
+Treat AI output as untrusted. Require Spanish, the requested topic and level, no duplicate questions/options, concise content, exactly four options, and a valid correct index. Prompt targets are at most 16 words per question, one sentence of about 24 words per flashcard answer, and 4 words per option. These are style targets, not repair triggers. Server-side safety ceilings are 500 characters per question, 1,000 per flashcard answer, and 300 per option. Prefer Ollama structured JSON and never parse prose with regex.
 
 ## Client State And UI
 
@@ -349,6 +355,8 @@ npm.cmd run build
 For schema changes, also run the migration dry run and push workflow. State clearly if verification cannot be completed.
 
 For authentication changes, verify that `src/` contains no `auth.getUser()` route guards, that temporary Supabase failures do not redirect users to login, and that login performs one server redirect rather than a client push followed by refresh.
+
+For generation-performance changes, compare warm runs with identical prompts, verify the processor split with `ollama ps`, and keep hardware-specific GPU settings only when they improve latency without invalid output or instability.
 
 ## Definition Of Done
 

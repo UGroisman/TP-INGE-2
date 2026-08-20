@@ -1,9 +1,18 @@
+import { isAdaptiveDifficulty } from "@/features/adaptive-learning/types";
 import type {
   MultipleChoiceContent,
   MultipleChoiceQuestion,
   QuestionCount,
 } from "@/features/multiple-choice/types";
-import { isAdaptiveDifficulty } from "@/features/adaptive-learning/types";
+
+const multipleChoiceQuestionSafetyMaxLength = 500;
+const multipleChoiceOptionSafetyMaxLength = 300;
+
+interface GeneratedMultipleChoiceQuestion {
+  q: string;
+  o: string[];
+  c: number;
+}
 
 const multipleChoiceSchema = {
   type: "object",
@@ -15,26 +24,28 @@ const multipleChoiceSchema = {
         type: "object",
         additionalProperties: false,
         properties: {
-          question: {
+          q: {
             type: "string",
             minLength: 1,
+            maxLength: multipleChoiceQuestionSafetyMaxLength,
           },
-          options: {
+          o: {
             type: "array",
             minItems: 4,
             maxItems: 4,
             items: {
               type: "string",
               minLength: 1,
+              maxLength: multipleChoiceOptionSafetyMaxLength,
             },
           },
-          correctOptionIndex: {
+          c: {
             type: "integer",
             minimum: 0,
             maximum: 3,
           },
         },
-        required: ["question", "options", "correctOptionIndex"],
+        required: ["q", "o", "c"],
       },
     },
   },
@@ -61,18 +72,27 @@ export function validateQuestionsOutput(
 ): MultipleChoiceContent[] | null {
   const questions = getQuestions(output);
 
-  if (!Array.isArray(questions) || questions.length !== count) {
+  if (!questions || questions.length !== count) {
     return null;
   }
 
-  const slots = collectQuestionSlots(output, count);
+  const normalizedQuestions = new Set<string>();
+  const validQuestions: MultipleChoiceContent[] = [];
 
-  return slots.every((question) => question !== null)
-    ? (slots as MultipleChoiceContent[])
-    : null;
+  for (const value of questions) {
+    const question = parsePublicQuestion(value);
+
+    if (!question || !addUniqueQuestion(question.question, normalizedQuestions)) {
+      return null;
+    }
+
+    validQuestions.push(question);
+  }
+
+  return validQuestions;
 }
 
-export function collectQuestionSlots(
+export function collectGeneratedQuestionSlots(
   output: unknown,
   count: number,
   excludedQuestions: string[] = [],
@@ -83,49 +103,25 @@ export function collectQuestionSlots(
   );
 
   return Array.from({ length: count }, (_, index) => {
-    const question = parseQuestion(questions?.[index]);
+    const generatedQuestion = parseGeneratedQuestion(questions?.[index]);
 
-    if (!question) {
+    if (
+      !generatedQuestion ||
+      !addUniqueQuestion(generatedQuestion.q, normalizedQuestions)
+    ) {
       return null;
     }
 
-    const normalizedQuestion = normalizeGeneratedQuestion(question.question);
-
-    if (normalizedQuestions.has(normalizedQuestion)) {
-      return null;
-    }
-
-    normalizedQuestions.add(normalizedQuestion);
-    return question;
+    return {
+      question: generatedQuestion.q,
+      options: generatedQuestion.o,
+      correctOptionIndex: generatedQuestion.c,
+    };
   });
 }
 
-function isValidQuestion(value: unknown): value is MultipleChoiceContent {
-  if (typeof value !== "object" || value === null) {
-    return false;
-  }
-
-  if (
-    !("question" in value) ||
-    !("options" in value) ||
-    !("correctOptionIndex" in value)
-  ) {
-    return false;
-  }
-
-  const question = value.question;
-  const options = value.options;
-  const correctOptionIndex = value.correctOptionIndex;
-
-  return (
-    typeof question === "string" &&
-    question.trim().length > 0 &&
-    areValidOptions(options) &&
-    Number.isInteger(correctOptionIndex) &&
-    typeof correctOptionIndex === "number" &&
-    correctOptionIndex >= 0 &&
-    correctOptionIndex <= 3
-  );
+export function getGeneratedQuestionCount(output: unknown) {
+  return getQuestions(output)?.length ?? 0;
 }
 
 export function validateMultipleChoiceResponse(
@@ -148,29 +144,25 @@ export function validateMultipleChoiceResponse(
   const questions: MultipleChoiceQuestion[] = [];
 
   for (const value of output.questions) {
+    const question = parsePublicQuestion(value);
+
     if (
-      !isValidQuestion(value) ||
+      !question ||
+      typeof value !== "object" ||
+      value === null ||
       !("id" in value) ||
       !("difficulty" in value) ||
       typeof value.id !== "string" ||
       !isUuid(value.id) ||
-      !isAdaptiveDifficulty(value.difficulty)
+      !isAdaptiveDifficulty(value.difficulty) ||
+      !addUniqueQuestion(question.question, normalizedQuestions)
     ) {
       return null;
     }
 
-    const normalizedQuestion = normalizeGeneratedQuestion(value.question);
-
-    if (normalizedQuestions.has(normalizedQuestion)) {
-      return null;
-    }
-
-    normalizedQuestions.add(normalizedQuestion);
     questions.push({
       id: value.id,
-      question: value.question.trim(),
-      options: value.options.map((option) => option.trim()),
-      correctOptionIndex: value.correctOptionIndex,
+      ...question,
       difficulty: value.difficulty,
     });
   }
@@ -178,7 +170,51 @@ export function validateMultipleChoiceResponse(
   return { questions, trackingEnabled: output.trackingEnabled };
 }
 
-function areValidOptions(value: unknown) {
+function parseGeneratedQuestion(
+  value: unknown,
+): GeneratedMultipleChoiceQuestion | null {
+  if (
+    typeof value !== "object" ||
+    value === null ||
+    !("q" in value) ||
+    !("o" in value) ||
+    !("c" in value) ||
+    !isSafeText(value.q, multipleChoiceQuestionSafetyMaxLength) ||
+    !areValidOptions(value.o) ||
+    !isCorrectOptionIndex(value.c)
+  ) {
+    return null;
+  }
+
+  return {
+    q: value.q.trim(),
+    o: value.o.map((option) => option.trim()),
+    c: value.c,
+  };
+}
+
+function parsePublicQuestion(value: unknown): MultipleChoiceContent | null {
+  if (
+    typeof value !== "object" ||
+    value === null ||
+    !("question" in value) ||
+    !("options" in value) ||
+    !("correctOptionIndex" in value) ||
+    !isSafeText(value.question, multipleChoiceQuestionSafetyMaxLength) ||
+    !areValidOptions(value.options) ||
+    !isCorrectOptionIndex(value.correctOptionIndex)
+  ) {
+    return null;
+  }
+
+  return {
+    question: value.question.trim(),
+    options: value.options.map((option) => option.trim()),
+    correctOptionIndex: value.correctOptionIndex,
+  };
+}
+
+function areValidOptions(value: unknown): value is string[] {
   if (!Array.isArray(value) || value.length !== 4) {
     return false;
   }
@@ -186,7 +222,7 @@ function areValidOptions(value: unknown) {
   const normalizedOptions = new Set<string>();
 
   for (const option of value) {
-    if (typeof option !== "string" || option.trim().length === 0) {
+    if (!isSafeText(option, multipleChoiceOptionSafetyMaxLength)) {
       return false;
     }
 
@@ -215,20 +251,36 @@ function getQuestions(output: unknown): unknown[] | null {
   return output.questions;
 }
 
-function parseQuestion(value: unknown): MultipleChoiceContent | null {
-  if (!isValidQuestion(value)) {
-    return null;
+function addUniqueQuestion(question: string, questions: Set<string>) {
+  const normalizedQuestion = normalizeGeneratedQuestion(question);
+
+  if (questions.has(normalizedQuestion)) {
+    return false;
   }
 
-  return {
-    question: value.question.trim(),
-    options: value.options.map((option) => option.trim()),
-    correctOptionIndex: value.correctOptionIndex,
-  };
+  questions.add(normalizedQuestion);
+  return true;
 }
 
 function normalizeGeneratedQuestion(value: string) {
   return value.trim().toLocaleLowerCase("es").replace(/\s+/g, " ");
+}
+
+function isSafeText(value: unknown, maxLength: number): value is string {
+  return (
+    typeof value === "string" &&
+    value.trim().length > 0 &&
+    value.trim().length <= maxLength
+  );
+}
+
+function isCorrectOptionIndex(value: unknown): value is number {
+  return (
+    typeof value === "number" &&
+    Number.isInteger(value) &&
+    value >= 0 &&
+    value <= 3
+  );
 }
 
 function isUuid(value: string) {

@@ -50,19 +50,18 @@ export async function POST(request: Request) {
       count: validation.count,
       difficultyPlan: adaptiveContext.difficultyPlan,
       systemMessage:
-        "Sos un asistente educativo. Respondé solamente JSON válido en español.",
+        "Sos un asistente educativo. Respondé solamente JSON válido y compacto en español, sin Markdown ni indentación.",
+      diagnosticLabel: "multiple-choice",
       buildPrompt: ({
         requestedCount,
         difficultyPlan,
         excludedQuestions,
         isRepair,
-        schema,
       }) =>
         buildPrompt(
           validation.topic,
           validation.level,
           requestedCount,
-          schema,
           difficultyPlan,
           excludedQuestions,
           isRepair,
@@ -105,33 +104,27 @@ function buildPrompt(
   topic: string,
   level: EducationLevel,
   requestedCount: number,
-  schema: Record<string, unknown>,
   difficultyPlan: AdaptiveDifficulty[],
   excludedQuestions: string[],
   isRepair: boolean,
 ) {
   return [
-    isRepair
-      ? `Generá exactamente ${requestedCount} preguntas nuevas para reemplazar preguntas inválidas de una generación anterior.`
-      : `Generá exactamente ${requestedCount} preguntas educativas de opción múltiple.`,
     `Tema: ${topic}`,
     `Nivel educativo: ${educationLevelLabels[level]}`,
-    "Idioma: español.",
+    "Creá preguntas de opción múltiple en español y mantenete estrictamente dentro del tema.",
+    "Cada elemento usa q para la pregunta, o para exactamente cuatro opciones únicas y c para el índice correcto entre 0 y 3.",
+    "Cada q debe tener como máximo 16 palabras. Cada opción de o debe ser una frase breve de como máximo 4 palabras y no incluir explicaciones.",
+    "Las opciones incorrectas deben ser plausibles pero inequívocamente incorrectas.",
+    "No repitas preguntas. Devolvé JSON compacto, sin saltos de línea ni espacios de indentación.",
     buildDifficultyInstructions(difficultyPlan),
-    "Cada pregunta debe tener question, options y correctOptionIndex.",
-    "Cada options debe tener exactamente 4 respuestas posibles.",
-    "correctOptionIndex debe ser el índice de la opción correcta entre 0 y 3.",
-    "Las opciones incorrectas deben ser plausibles, pero claramente incorrectas.",
-    "No repitas opciones dentro de una misma pregunta.",
-    "No repitas preguntas.",
     isRepair
       ? `No uses ninguna de estas preguntas ya aceptadas:\n${excludedQuestions
           .map((question) => `- ${question}`)
           .join("\n")}`
       : null,
-    "Mantenete estrictamente dentro del tema pedido.",
-    "Respondé únicamente con un objeto JSON que cumpla este esquema:",
-    JSON.stringify(schema),
+    isRepair
+      ? `Generá exactamente ${requestedCount} preguntas nuevas para reemplazar las inválidas.`
+      : `Generá exactamente ${requestedCount} preguntas.`,
   ]
     .filter((line): line is string => line !== null)
     .join("\n");

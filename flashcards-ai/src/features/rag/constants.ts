@@ -9,3 +9,4 @@ export const ragFileInputAccept = ".pdf,.txt,application/pdf,text/plain";
 export const maxSelectedRagDocuments = 10;
 export const ragMatchThreshold = 0.3;
 export const ragMatchCount = 8;
+export const ragPromptMaxCharacters = 4_500;

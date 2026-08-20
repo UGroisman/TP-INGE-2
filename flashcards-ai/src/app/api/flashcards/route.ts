@@ -27,20 +27,15 @@ export async function POST(request: Request) {
   try {
     const cards = await generateFlashcardsWithRecovery({
       systemMessage:
-        "Sos un asistente educativo. Respondé solamente JSON válido en español.",
-      buildPrompt: ({
-        requestedCount,
-        excludedQuestions,
-        isRepair,
-        schema,
-      }) =>
+        "Sos un asistente educativo. Respondé solamente JSON válido y compacto en español, sin Markdown ni indentación.",
+      diagnosticLabel: "flashcards",
+      buildPrompt: ({ requestedCount, excludedQuestions, isRepair }) =>
         buildPrompt(
           validation.topic,
           validation.level,
           requestedCount,
           excludedQuestions,
           isRepair,
-          schema,
         ),
     });
 
@@ -70,27 +65,22 @@ function buildPrompt(
   requestedCount: number,
   excludedQuestions: string[],
   isRepair: boolean,
-  schema: Record<string, unknown>,
 ) {
   return [
-    isRepair
-      ? `Generá exactamente ${requestedCount} flashcards nuevas para completar una generación anterior.`
-      : `Generá exactamente ${requestedCount} flashcards educativas candidatas.`,
     `Tema: ${topic}`,
     `Nivel educativo: ${educationLevelLabels[level]}`,
-    "Idioma: español.",
-    "Cada flashcard debe tener question y answer.",
-    "Las preguntas deben evaluar comprensión, no memorización mecánica.",
-    "Las respuestas deben ser claras, breves y adecuadas al nivel.",
-    "No repitas preguntas.",
+    "Creá flashcards en español que evalúen comprensión y se mantengan estrictamente dentro del tema.",
+    "Cada elemento usa q para la pregunta y a para la respuesta.",
+    "Cada q debe tener como máximo 16 palabras. Cada a debe ser clara, adecuada al nivel y tener una sola oración de hasta 24 palabras.",
+    "No repitas preguntas. Devolvé JSON compacto, sin saltos de línea ni espacios de indentación.",
     isRepair
       ? `No uses ninguna de estas preguntas ya aceptadas:\n${excludedQuestions
           .map((question) => `- ${question}`)
           .join("\n")}`
       : null,
-    "Mantenete estrictamente dentro del tema pedido.",
-    "Respondé únicamente con un objeto JSON que cumpla este esquema:",
-    JSON.stringify(schema),
+    isRepair
+      ? `Generá exactamente ${requestedCount} flashcards nuevas para completar la generación.`
+      : `Generá exactamente ${requestedCount} flashcards.`,
   ]
     .filter((line): line is string => line !== null)
     .join("\n");

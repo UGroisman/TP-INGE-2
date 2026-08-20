@@ -74,16 +74,15 @@ export function buildDifficultyPlan(
 
 export function buildDifficultyInstructions(plan: AdaptiveDifficulty[]) {
   const labels: Record<AdaptiveDifficulty, string> = {
-    easy: "fácil: recuerdo directo o aplicación de un solo paso",
-    medium: "media: comprensión, comparación o aplicación conceptual",
-    hard: "difícil: razonamiento de varios pasos y distractores sutiles",
+    easy: "fácil",
+    medium: "media",
+    hard: "difícil",
   };
 
   return [
-    "Respetá esta dificultad para cada posición. La dificultad es relativa al nivel educativo indicado:",
-    ...plan.map(
-      (difficulty, index) =>
-        "Pregunta " + (index + 1) + ": " + labels[difficulty] + ".",
-    ),
+    `Dificultad por posición, relativa al nivel: ${plan
+      .map((difficulty, index) => `${index + 1}:${labels[difficulty]}`)
+      .join(", ")}.`,
+    "Fácil: un paso. Media: comprensión o aplicación conceptual. Difícil: razonamiento de varios pasos.",
   ].join("\n");
 }

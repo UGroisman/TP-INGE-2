@@ -19,7 +19,12 @@ import {
   ragDocumentNameMinLength,
   ragMatchCount,
   ragMatchThreshold,
+  ragPromptMaxCharacters,
 } from "@/features/rag/constants";
+import {
+  elapsedMilliseconds,
+  logServerPerformance,
+} from "@/lib/performance";
 import {
   createEmbeddings,
   getOllamaEmbeddingModel,
@@ -42,9 +47,21 @@ interface RagMatchRow {
 }
 
 export async function getAuthenticatedRagClient() {
-  return getAuthenticatedServerClient(
+  const startedAt = performance.now();
+  const auth = await getAuthenticatedServerClient(
     "Iniciá sesión para usar RAG con tus materiales.",
   );
+
+  logServerPerformance("rag.auth", {
+    durationMs: elapsedMilliseconds(startedAt),
+    status: auth.ok
+      ? "authenticated"
+      : auth.status === 401
+        ? "anonymous"
+        : "unavailable",
+  });
+
+  return auth;
 }
 
 export function toRagDocument(row: RagDocumentRow): RagDocument {
@@ -167,11 +184,17 @@ export async function retrieveRagContext(
   topic: string,
   documentIds: string[],
 ) {
+  const startedAt = performance.now();
   const embeddingModel = getOllamaEmbeddingModel();
-  const { data: documentsData, error: documentsError } = await supabase
+  const documentsRequest = supabase
     .from("rag_documents")
     .select("id, embedding_model")
     .in("id", documentIds);
+  const [documentsResult, queryEmbeddings] = await Promise.all([
+    documentsRequest,
+    createEmbeddings([topic], "query"),
+  ]);
+  const { data: documentsData, error: documentsError } = documentsResult;
 
   if (documentsError) {
     return {
@@ -205,13 +228,19 @@ export async function retrieveRagContext(
     };
   }
 
-  const [queryEmbedding] = await createEmbeddings([topic], "query");
+  const [queryEmbedding] = queryEmbeddings;
+  const searchStartedAt = performance.now();
   const { data, error } = await supabase.rpc("match_rag_chunks", {
     p_query_embedding: queryEmbedding,
     p_document_ids: documentIds,
     p_embedding_model: embeddingModel,
     p_match_threshold: ragMatchThreshold,
     p_match_count: ragMatchCount,
+  });
+
+  logServerPerformance("rag.retrieval.rpc", {
+    durationMs: elapsedMilliseconds(searchStartedAt),
+    requestedMatches: ragMatchCount,
   });
 
   if (error) {
@@ -233,14 +262,38 @@ export async function retrieveRagContext(
     };
   }
 
-  const context = rows
-    .map(
-      (row, index) =>
-        `[Fragmento ${index + 1} - ${row.document_name}]\n${row.content}`,
-    )
-    .join("\n\n");
+  const context = buildRagContext(rows);
+
+  logServerPerformance("rag.retrieval.total", {
+    durationMs: elapsedMilliseconds(startedAt),
+    matchedChunks: rows.length,
+    contextCharacters: context.length,
+    selectedDocuments: documentIds.length,
+  });
 
   return { ok: true as const, context };
+}
+
+function buildRagContext(rows: RagMatchRow[]) {
+  const fragments: string[] = [];
+  let contextLength = 0;
+
+  for (const row of rows) {
+    const fragment = `[Fragmento ${fragments.length + 1} - ${row.document_name}]\n${row.content.trim()}`;
+    const separatorLength = fragments.length === 0 ? 0 : 2;
+
+    if (
+      contextLength + separatorLength + fragment.length >
+      ragPromptMaxCharacters
+    ) {
+      continue;
+    }
+
+    fragments.push(fragment);
+    contextLength += separatorLength + fragment.length;
+  }
+
+  return fragments.join("\n\n");
 }
 
 function validateRagGenerationRequest(body: unknown):

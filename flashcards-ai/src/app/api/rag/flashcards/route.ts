@@ -48,13 +48,9 @@ export async function POST(request: Request) {
 
     const cards = await generateFlashcardsWithRecovery({
       systemMessage:
-        "Sos un asistente educativo. Respondé solamente JSON válido en español y usá exclusivamente el material proporcionado.",
-      buildPrompt: ({
-        requestedCount,
-        excludedQuestions,
-        isRepair,
-        schema,
-      }) =>
+        "Sos un asistente educativo. Respondé solamente JSON válido y compacto en español, sin Markdown ni indentación, y usá exclusivamente el material proporcionado.",
+      diagnosticLabel: "rag.flashcards",
+      buildPrompt: ({ requestedCount, excludedQuestions, isRepair }) =>
         buildPrompt(
           validation.topic,
           educationLevelLabels[validation.level],
@@ -62,7 +58,6 @@ export async function POST(request: Request) {
           requestedCount,
           excludedQuestions,
           isRepair,
-          schema,
         ),
     });
 
@@ -96,27 +91,26 @@ function buildPrompt(
   requestedCount: number,
   excludedQuestions: string[],
   isRepair: boolean,
-  schema: Record<string, unknown>,
 ) {
   return [
-    isRepair
-      ? `Generá exactamente ${requestedCount} flashcards nuevas para completar una generación anterior.`
-      : `Generá exactamente ${requestedCount} flashcards educativas candidatas.`,
     `Tema solicitado: ${topic}`,
     `Nivel educativo: ${levelLabel}`,
-    "Cada flashcard debe tener question y answer.",
-    "Todas las respuestas deben estar respaldadas directamente por el material.",
-    "No agregues conocimiento externo, suposiciones ni datos inventados.",
-    "No repitas preguntas y mantené las respuestas claras y breves.",
+    "MATERIAL RECUPERADO:",
+    context,
+    "FIN DEL MATERIAL.",
+    "Creá flashcards en español usando exclusivamente el material recuperado.",
+    "Cada elemento usa q para la pregunta y a para la respuesta.",
+    "Cada q debe tener como máximo 16 palabras. Cada a debe estar respaldada por el material y tener una sola oración de hasta 24 palabras.",
+    "No agregues conocimiento externo, no inventes datos y no repitas preguntas.",
+    "Devolvé JSON compacto, sin saltos de línea ni espacios de indentación.",
     isRepair
       ? `No uses ninguna de estas preguntas ya aceptadas:\n${excludedQuestions
           .map((question) => `- ${question}`)
           .join("\n")}`
       : null,
-    "MATERIAL RECUPERADO:",
-    context,
-    "Respondé únicamente con un objeto JSON que cumpla este esquema:",
-    JSON.stringify(schema),
+    isRepair
+      ? `Generá exactamente ${requestedCount} flashcards nuevas para completar la generación.`
+      : `Generá exactamente ${requestedCount} flashcards.`,
   ]
     .filter((line): line is string => line !== null)
     .join("\n\n");

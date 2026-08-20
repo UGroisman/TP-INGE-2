@@ -40,17 +40,19 @@ export async function POST(request: Request) {
   }
 
   try {
-    const difficultyPlan = await getDifficultyPlan(
-      auth.supabase,
-      validation.topic,
-      validation.level,
-      validation.count,
-    );
-    const retrieval = await retrieveRagContext(
-      auth.supabase,
-      validation.topic,
-      validation.documentIds,
-    );
+    const [difficultyPlan, retrieval] = await Promise.all([
+      getDifficultyPlan(
+        auth.supabase,
+        validation.topic,
+        validation.level,
+        validation.count,
+      ),
+      retrieveRagContext(
+        auth.supabase,
+        validation.topic,
+        validation.documentIds,
+      ),
+    ]);
 
     if (!retrieval.ok) {
       return Response.json(
@@ -63,13 +65,13 @@ export async function POST(request: Request) {
       count: validation.count,
       difficultyPlan,
       systemMessage:
-        "Sos un asistente educativo. Respondé solamente JSON válido en español y usá exclusivamente el material proporcionado.",
+        "Sos un asistente educativo. Respondé solamente JSON válido y compacto en español, sin Markdown ni indentación, y usá exclusivamente el material proporcionado.",
+      diagnosticLabel: "rag.multiple-choice",
       buildPrompt: ({
         requestedCount,
         difficultyPlan: requestedDifficultyPlan,
         excludedQuestions,
         isRepair,
-        schema,
       }) =>
         buildPrompt(
           validation.topic,
@@ -79,7 +81,6 @@ export async function POST(request: Request) {
           requestedDifficultyPlan,
           excludedQuestions,
           isRepair,
-          schema,
         ),
     });
 
@@ -123,29 +124,28 @@ function buildPrompt(
   difficultyPlan: AdaptiveDifficulty[],
   excludedQuestions: string[],
   isRepair: boolean,
-  schema: Record<string, unknown>,
 ) {
   return [
-    isRepair
-      ? `Generá exactamente ${requestedCount} preguntas nuevas para reemplazar preguntas inválidas de una generación anterior.`
-      : `Generá exactamente ${requestedCount} preguntas educativas de opción múltiple.`,
     `Tema solicitado: ${topic}`,
     `Nivel educativo: ${levelLabel}`,
+    "MATERIAL RECUPERADO:",
+    context,
+    "FIN DEL MATERIAL.",
+    "Creá preguntas de opción múltiple en español usando exclusivamente el material recuperado.",
+    "Cada elemento usa q para la pregunta, o para exactamente cuatro opciones únicas y c para el índice correcto entre 0 y 3.",
+    "Cada q debe tener como máximo 16 palabras. Cada opción de o debe ser una frase breve de como máximo 4 palabras y no incluir explicaciones.",
+    "La respuesta correcta debe estar respaldada directamente por el material; las opciones incorrectas deben ser plausibles.",
+    "No agregues conocimiento externo, no inventes datos y no repitas preguntas.",
+    "Devolvé JSON compacto, sin saltos de línea ni espacios de indentación.",
     buildDifficultyInstructions(difficultyPlan),
-    "Cada pregunta debe tener question, cuatro options y correctOptionIndex.",
-    "Todas las respuestas correctas deben estar respaldadas directamente por el material.",
-    "No agregues conocimiento externo, suposiciones ni datos inventados.",
-    "Las opciones incorrectas deben ser plausibles y no pueden repetirse.",
-    "No repitas preguntas.",
     isRepair
       ? `No uses ninguna de estas preguntas ya aceptadas:\n${excludedQuestions
           .map((question) => `- ${question}`)
           .join("\n")}`
       : null,
-    "MATERIAL RECUPERADO:",
-    context,
-    "Respondé únicamente con un objeto JSON que cumpla este esquema:",
-    JSON.stringify(schema),
+    isRepair
+      ? `Generá exactamente ${requestedCount} preguntas nuevas para reemplazar las inválidas.`
+      : `Generá exactamente ${requestedCount} preguntas.`,
   ]
     .filter((line): line is string => line !== null)
     .join("\n\n");

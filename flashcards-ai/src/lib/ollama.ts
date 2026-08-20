@@ -1,3 +1,10 @@
+import "server-only";
+
+import {
+  elapsedMilliseconds,
+  logOllamaPerformance,
+} from "@/lib/performance";
+
 interface OllamaMessage {
   role: "system" | "user";
   content: string;
@@ -13,6 +20,8 @@ interface ChatWithOllamaJsonParams {
   schema: Record<string, unknown>;
   messages: OllamaMessage[];
   temperature?: number;
+  diagnosticLabel?: string;
+  numPredict?: number;
 }
 
 export class OllamaRequestError extends Error {
@@ -40,9 +49,12 @@ export async function chatWithOllamaJson({
   schema,
   messages,
   temperature = 0.3,
+  diagnosticLabel = "ollama.chat",
+  numPredict,
 }: ChatWithOllamaJsonParams) {
   const ollamaBaseUrl = getOllamaBaseUrl();
   const ollamaModel = getOllamaModel();
+  const startedAt = performance.now();
 
   let response: Response;
 
@@ -58,6 +70,9 @@ export async function chatWithOllamaJson({
         format: schema,
         options: {
           temperature,
+          ...(numPredict === undefined
+            ? {}
+            : { num_predict: numPredict }),
         },
         messages,
       }),
@@ -81,7 +96,21 @@ export async function chatWithOllamaJson({
     );
   }
 
-  const data: unknown = await response.json();
+  let data: unknown;
+
+  try {
+    data = await response.json();
+  } catch {
+    throw new OllamaRequestError(
+      "El modelo local devolvió una respuesta inválida.",
+    );
+  }
+
+  logOllamaPerformance(
+    diagnosticLabel,
+    data,
+    elapsedMilliseconds(startedAt),
+  );
   const content = getOllamaMessageContent(data);
 
   if (!content) {

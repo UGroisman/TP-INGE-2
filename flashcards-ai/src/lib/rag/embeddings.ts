@@ -1,6 +1,10 @@
 import "server-only";
 
 import { getOllamaBaseUrl } from "@/lib/ollama";
+import {
+  elapsedMilliseconds,
+  logOllamaPerformance,
+} from "@/lib/performance";
 
 export const ragEmbeddingDimensions = 768;
 
@@ -37,6 +41,7 @@ export async function createEmbeddings(
 
   const model = getOllamaEmbeddingModel();
   const prefix = task === "document" ? "search_document:" : "search_query:";
+  const startedAt = performance.now();
   let response: Response;
 
   try {
@@ -50,6 +55,7 @@ export async function createEmbeddings(
         input: texts.map((text) => `${prefix} ${text}`),
         dimensions: ragEmbeddingDimensions,
         truncate: false,
+        keep_alive: 0,
       }),
     });
   } catch {
@@ -80,6 +86,12 @@ export async function createEmbeddings(
       "Ollama devolvió una respuesta de embeddings inválida.",
     );
   }
+
+  logOllamaPerformance(
+    `rag.embedding.${task}`,
+    data,
+    elapsedMilliseconds(startedAt),
+  );
 
   const embeddings = getEmbeddings(data);
 
