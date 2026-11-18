@@ -7,6 +7,16 @@ import type { QuestionCount } from "@/features/multiple-choice/types";
 
 export const minimumAdaptiveAttempts = 5;
 
+export function rankTopicsForReview<T extends Pick<TopicProgress, "totalAttempts" | "mastery" | "incorrectAnswers">>(topics: T[]): T[] {
+  return topics
+    .filter((topic) => topic.totalAttempts >= minimumAdaptiveAttempts)
+    .sort((a, b) => a.mastery - b.mastery || b.incorrectAnswers - a.incorrectAnswers);
+}
+
+export function getMasteryLabel(mastery: number): string {
+  return mastery < 0.4 ? "Necesita refuerzo" : mastery <= 0.75 ? "En progreso" : "Dominado";
+}
+
 const difficultyOrder: AdaptiveDifficulty[] = ["medium", "easy", "hard"];
 
 export function normalizeTopic(topic: string) {

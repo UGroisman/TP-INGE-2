@@ -86,7 +86,7 @@ export async function POST(request: Request) {
 
     if (!questionContent) {
       return Response.json(
-        { error: "El modelo local no devolvió preguntas RAG válidas." },
+        { error: "El modelo no devolvió preguntas RAG válidas." },
         { status: 502 },
       );
     }

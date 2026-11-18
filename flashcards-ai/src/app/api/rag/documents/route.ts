@@ -10,15 +10,11 @@ import {
   ragFileMaxSizeBytes,
 } from "@/features/rag/constants";
 import { splitIntoChunks, maxRagChunks } from "@/lib/rag/chunks";
+import { enqueueMaterial } from "@/lib/queue";
 import {
   extractRagFileText,
   RagFileError,
 } from "@/lib/rag/documentText";
-import {
-  createEmbeddings,
-  getOllamaEmbeddingModel,
-  OllamaEmbeddingError,
-} from "@/lib/rag/embeddings";
 
 interface RagDocumentRow {
   id: string;
@@ -43,7 +39,7 @@ export async function GET() {
 
   const { data, error } = await auth.supabase
     .from("rag_documents")
-    .select("id, name, embedding_model, chunk_count, created_at")
+    .select("id, name, embedding_model, chunk_count, created_at, status, starter_cards")
     .order("created_at", { ascending: false });
 
   if (error) {
@@ -81,9 +77,8 @@ export async function POST(request: Request) {
   }
 
   try {
-    const embeddings = await createEmbeddings(chunks, "document");
     const documentId = crypto.randomUUID();
-    const embeddingModel = getOllamaEmbeddingModel();
+    const embeddingModel = "supabase/gte-small";
     const { data: documentData, error: documentError } = await auth.supabase
       .from("rag_documents")
       .insert({
@@ -92,6 +87,7 @@ export async function POST(request: Request) {
         name: input.name,
         embedding_model: embeddingModel,
         chunk_count: chunks.length,
+        status: "queued",
       })
       .select("id, name, embedding_model, chunk_count, created_at")
       .single();
@@ -103,35 +99,23 @@ export async function POST(request: Request) {
       );
     }
 
-    const chunkRows = chunks.map((content, position) => ({
-      id: crypto.randomUUID(),
-      document_id: documentId,
-      position,
-      content,
-      embedding: embeddings[position],
-    }));
-    const { error: chunksError } = await auth.supabase
-      .from("rag_document_chunks")
-      .insert(chunkRows);
-
-    if (chunksError) {
+    const { data: job, error: jobError } = await auth.supabase.from("material_jobs")
+      .insert({ document_id: documentId, user_id: auth.user.id, content: input.content })
+      .select("id").single();
+    if (jobError || !job) {
       await auth.supabase.from("rag_documents").delete().eq("id", documentId);
-
-      return Response.json(
-        { error: "No pudimos guardar los fragmentos del material." },
-        { status: 500 },
-      );
+      return Response.json({ error: "No pudimos crear el trabajo." }, { status: 500 });
+    }
+    try { await enqueueMaterial(job.id); } catch {
+      await auth.supabase.from("rag_documents").delete().eq("id", documentId);
+      return Response.json({ error: "No pudimos conectar con la cola de procesamiento." }, { status: 503 });
     }
 
     return Response.json(
-      { document: toRagDocument(documentData as RagDocumentRow) },
+      { document: { ...toRagDocument(documentData as RagDocumentRow), status: "queued" } },
       { status: 201 },
     );
-  } catch (error) {
-    if (error instanceof OllamaEmbeddingError) {
-      return Response.json({ error: error.message }, { status: error.status });
-    }
-
+  } catch {
     return Response.json(
       { error: "No pudimos procesar el material. Intentá nuevamente." },
       { status: 500 },

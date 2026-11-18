@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { RagDocumentForm } from "@/features/rag/components/RagDocumentForm";
 import { useRagDocuments } from "@/features/rag/hooks/useRagDocuments";
 import { deleteRagDocument } from "@/features/rag/services/rag";
@@ -10,6 +10,22 @@ export function RagDocumentsManager() {
   const [deletingId, setDeletingId] = useState<string | null>(null);
   const [actionError, setActionError] = useState<string | null>(null);
   const [message, setMessage] = useState<string | null>(null);
+  const hasPending = documents.some((document) => document.status === "queued" || document.status === "processing");
+
+  useEffect(() => {
+    if (!hasPending) return;
+    const timer = window.setInterval(() => void reload(), 5000);
+    return () => window.clearInterval(timer);
+  }, [hasPending, reload]);
+
+  useEffect(() => {
+    const wakeUrl = process.env.NEXT_PUBLIC_WORKER_WAKE_URL;
+    if (!wakeUrl || !hasPending) return;
+    const wake = () => { void fetch(wakeUrl, { mode: "no-cors", cache: "no-store" }).catch(() => undefined); };
+    wake();
+    const timer = window.setInterval(wake, 45000);
+    return () => window.clearInterval(timer);
+  }, [hasPending]);
 
   async function handleDelete(documentId: string, documentName: string) {
     const confirmed = window.confirm(
@@ -124,6 +140,8 @@ export function RagDocumentsManager() {
                     {document.chunkCount} fragmentos ·{" "}
                     {formatDate(document.createdAt)}
                   </p>
+                  <p className="mt-2 text-sm font-semibold">{document.status === "queued" ? "En cola" : document.status === "processing" ? "Procesando" : document.status === "failed" ? "Error al procesar" : "Listo para estudiar"}</p>
+                  {document.starterCards && document.starterCards.length > 0 ? <details className="mt-3 text-sm"><summary className="cursor-pointer font-semibold text-teal-800">Ver tarjetas iniciales</summary><ol className="mt-2 space-y-3">{document.starterCards.map((card, index) => <li key={index}><strong>{card.question}</strong><p>{card.answer}</p></li>)}</ol></details> : null}
                 </div>
                 <button
                   type="button"

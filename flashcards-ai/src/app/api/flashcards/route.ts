@@ -41,7 +41,7 @@ export async function POST(request: Request) {
 
     if (!cards) {
       return Response.json(
-        { error: "El modelo local no devolvió 10 flashcards válidas." },
+        { error: "El modelo no devolvió 10 flashcards válidas." },
         { status: 502 },
       );
     }

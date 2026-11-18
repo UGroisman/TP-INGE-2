@@ -11,6 +11,8 @@ export interface RagDocument {
   embeddingModel: string;
   chunkCount: number;
   createdAt: string;
+  status?: "queued" | "processing" | "ready" | "failed";
+  starterCards?: Flashcard[];
 }
 
 export interface RagDocumentsResponse {

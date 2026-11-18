@@ -1,135 +1,31 @@
 import "server-only";
-
 import { getOllamaBaseUrl } from "@/lib/ollama";
-import {
-  elapsedMilliseconds,
-  logOllamaPerformance,
-} from "@/lib/performance";
 
 export const ragEmbeddingDimensions = 768;
-
-type EmbeddingTask = "document" | "query";
-
-interface OllamaEmbedResponse {
-  embeddings?: unknown;
-}
-
 export class OllamaEmbeddingError extends Error {
-  status: number;
-
-  constructor(message: string, status = 502) {
-    super(message);
-    this.name = "OllamaEmbeddingError";
-    this.status = status;
-  }
+  constructor(message: string, public status = 502) { super(message); this.name = "OllamaEmbeddingError"; }
 }
-
 export function getOllamaEmbeddingModel() {
-  return process.env.OLLAMA_EMBEDDING_MODEL ?? "nomic-embed-text";
+  return process.env.AI_GATEWAY_EMBEDDING_MODEL ?? "openai/text-embedding-3-small";
 }
-
-export async function createEmbeddings(
-  texts: string[],
-  task: EmbeddingTask,
-) {
-  if (texts.length === 0) {
-    throw new OllamaEmbeddingError(
-      "No hay contenido para generar embeddings.",
-      400,
-    );
-  }
-
-  const model = getOllamaEmbeddingModel();
-  const prefix = task === "document" ? "search_document:" : "search_query:";
-  const startedAt = performance.now();
+export async function createEmbeddings(texts: string[], task: "document" | "query") {
+  if (task !== "document" && task !== "query") throw new OllamaEmbeddingError("Tipo de embedding inválido.", 400);
+  if (!texts.length) throw new OllamaEmbeddingError("No hay contenido para generar embeddings.", 400);
+  const key = process.env.AI_GATEWAY_API_KEY;
+  if (!key) throw new OllamaEmbeddingError("Falta configurar AI_GATEWAY_API_KEY.", 503);
   let response: Response;
-
   try {
-    response = await fetch(`${getOllamaBaseUrl()}/api/embed`, {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-      },
-      body: JSON.stringify({
-        model,
-        input: texts.map((text) => `${prefix} ${text}`),
-        dimensions: ragEmbeddingDimensions,
-        truncate: false,
-        keep_alive: 0,
-      }),
+    response = await fetch(`${getOllamaBaseUrl()}/embeddings`, {
+      method: "POST", headers: { "Content-Type": "application/json", Authorization: `Bearer ${key}` },
+      body: JSON.stringify({ model: getOllamaEmbeddingModel(), input: texts, dimensions: ragEmbeddingDimensions }),
+      signal: AbortSignal.timeout(120000),
     });
-  } catch {
-    throw new OllamaEmbeddingError(
-      "No pudimos conectarnos con Ollama para procesar el material.",
-    );
-  }
-
-  if (!response.ok) {
-    const errorText = await response.text();
-    const modelError =
-      response.status === 404 ||
-      errorText.toLocaleLowerCase("es").includes("model");
-
-    throw new OllamaEmbeddingError(
-      modelError
-        ? "No pudimos usar el modelo de embeddings. Ejecutá ollama pull nomic-embed-text."
-        : "Ollama no pudo generar los embeddings del material.",
-    );
-  }
-
-  let data: unknown;
-
-  try {
-    data = await response.json();
-  } catch {
-    throw new OllamaEmbeddingError(
-      "Ollama devolvió una respuesta de embeddings inválida.",
-    );
-  }
-
-  logOllamaPerformance(
-    `rag.embedding.${task}`,
-    data,
-    elapsedMilliseconds(startedAt),
-  );
-
-  const embeddings = getEmbeddings(data);
-
-  if (!embeddings || embeddings.length !== texts.length) {
-    throw new OllamaEmbeddingError(
-      "Ollama no devolvió un embedding válido por cada fragmento.",
-    );
-  }
-
-  return embeddings;
-}
-
-function getEmbeddings(data: unknown): number[][] | null {
-  if (typeof data !== "object" || data === null || !("embeddings" in data)) {
-    return null;
-  }
-
-  const embeddings = (data as OllamaEmbedResponse).embeddings;
-
-  if (!Array.isArray(embeddings)) {
-    return null;
-  }
-
-  const validEmbeddings: number[][] = [];
-
-  for (const embedding of embeddings) {
-    if (
-      !Array.isArray(embedding) ||
-      embedding.length !== ragEmbeddingDimensions ||
-      !embedding.every(
-        (value) => typeof value === "number" && Number.isFinite(value),
-      )
-    ) {
-      return null;
-    }
-
-    validEmbeddings.push(embedding as number[]);
-  }
-
-  return validEmbeddings;
+  } catch { throw new OllamaEmbeddingError("No pudimos conectar con AI Gateway para procesar el material."); }
+  if (!response.ok) throw new OllamaEmbeddingError(`AI Gateway no pudo generar embeddings (HTTP ${response.status}).`);
+  const data: unknown = await response.json();
+  if (typeof data !== "object" || data === null || !("data" in data) || !Array.isArray(data.data)) throw new OllamaEmbeddingError("Respuesta de embeddings inválida.");
+  const rows = [...data.data].sort((a, b) => a.index - b.index);
+  const embeddings: unknown[] = rows.map((row) => row.embedding);
+  if (embeddings.length !== texts.length || !embeddings.every((e) => Array.isArray(e) && e.length === ragEmbeddingDimensions && e.every((v: unknown) => typeof v === "number" && Number.isFinite(v)))) throw new OllamaEmbeddingError("La cantidad o dimensión de embeddings es incorrecta.");
+  return embeddings as number[][];
 }

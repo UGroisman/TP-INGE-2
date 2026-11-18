@@ -12,7 +12,7 @@ import type {
 } from "@/features/multiple-choice/types";
 import type { EducationLevel } from "@/features/study/types";
 
-export function MultipleChoiceGenerator() {
+export function MultipleChoiceGenerator({ initialTopic, initialLevel }: { initialTopic?: string; initialLevel?: string }) {
   const [questions, setQuestions] = useState<MultipleChoiceQuestion[]>([]);
   const [lastRequest, setLastRequest] = useState<{
     topic: string;
@@ -90,7 +90,7 @@ export function MultipleChoiceGenerator() {
 
   return (
     <>
-      <MultipleChoiceForm loading={loading} onGenerate={handleGenerate} />
+      <MultipleChoiceForm loading={loading} onGenerate={handleGenerate} initialTopic={initialTopic} initialLevel={initialLevel} />
 
       {loading ? (
         <div

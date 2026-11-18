@@ -70,7 +70,7 @@ export async function POST(request: Request) {
 
     if (!questionContent) {
       return Response.json(
-        { error: "El modelo local no devolvió preguntas válidas." },
+        { error: "El modelo no devolvió preguntas válidas." },
         { status: 502 },
       );
     }

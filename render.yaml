@@ -1,0 +1,20 @@
+services:
+  - type: web
+    name: flashcards-worker
+    runtime: node
+    plan: free
+    rootDir: flashcards-ai
+    buildCommand: npm ci
+    startCommand: node worker/index.mjs
+    healthCheckPath: /
+    envVars:
+      - key: NODE_VERSION
+        value: 22
+      - key: NEXT_PUBLIC_SUPABASE_URL
+        sync: false
+      - key: SUPABASE_SERVICE_ROLE_KEY
+        sync: false
+      - key: RABBITMQ_URL
+        sync: false
+      - key: AI_GATEWAY_API_KEY
+        sync: false

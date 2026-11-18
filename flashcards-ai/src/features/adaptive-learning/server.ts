@@ -2,6 +2,7 @@ import type { SupabaseClient } from "@supabase/supabase-js";
 import {
   buildDifficultyPlan,
   normalizeTopic,
+  rankTopicsForReview,
 } from "@/features/adaptive-learning/algorithm";
 import type {
   AdaptiveDifficulty,
@@ -64,6 +65,21 @@ export async function getTopicProgress(
   }
 
   return parseTopicProgress(data as TopicProgressRow);
+}
+
+export async function getTopicsForReview(supabase: SupabaseClient): Promise<TopicProgress[]> {
+  const { data, error } = await supabase
+    .from("multiple_choice_topic_progress")
+    .select("topic, topic_key, education_level, total_attempts, correct_answers, incorrect_answers, mastery, last_answered_at")
+    .gte("total_attempts", 5)
+    .order("mastery")
+    .order("incorrect_answers", { ascending: false })
+    .order("topic_key")
+    .order("education_level")
+    .limit(5);
+
+  if (error) throw new AdaptiveProgressError();
+  return rankTopicsForReview((data ?? []).map((row) => parseTopicProgress(row as TopicProgressRow)));
 }
 
 export async function getDifficultyPlan(

@@ -76,7 +76,7 @@ export function RagDocumentSelector({
                   type="checkbox"
                   checked={isSelected}
                   onChange={() => onToggle(document.id)}
-                  disabled={!isSelected && reachedLimit}
+                  disabled={(document.status !== undefined && document.status !== "ready") || (!isSelected && reachedLimit)}
                   className="mt-1 h-4 w-4 accent-teal-700"
                 />
                 <span className="min-w-0">
@@ -84,7 +84,7 @@ export function RagDocumentSelector({
                     {document.name}
                   </span>
                   <span className="mt-1 block text-xs text-zinc-500">
-                    {document.chunkCount} fragmentos
+                    {document.status && document.status !== "ready" ? "Material aún no disponible" : `${document.chunkCount} fragmentos`}
                   </span>
                 </span>
               </label>

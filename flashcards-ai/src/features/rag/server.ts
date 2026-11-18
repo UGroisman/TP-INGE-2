@@ -18,17 +18,12 @@ import {
   ragDocumentNameMaxLength,
   ragDocumentNameMinLength,
   ragMatchCount,
-  ragMatchThreshold,
   ragPromptMaxCharacters,
 } from "@/features/rag/constants";
 import {
   elapsedMilliseconds,
   logServerPerformance,
 } from "@/lib/performance";
-import {
-  createEmbeddings,
-  getOllamaEmbeddingModel,
-} from "@/lib/rag/embeddings";
 
 interface RagDocumentRow {
   id: string;
@@ -36,6 +31,8 @@ interface RagDocumentRow {
   embedding_model: string;
   chunk_count: number;
   created_at: string;
+  status?: "queued" | "processing" | "ready" | "failed";
+  starter_cards?: unknown;
 }
 
 interface RagMatchRow {
@@ -71,6 +68,8 @@ export function toRagDocument(row: RagDocumentRow): RagDocument {
     embeddingModel: row.embedding_model,
     chunkCount: row.chunk_count,
     createdAt: row.created_at,
+    status: row.status ?? "ready",
+    starterCards: Array.isArray(row.starter_cards) ? row.starter_cards.filter((card): card is { question: string; answer: string } => typeof card === "object" && card !== null && typeof card.question === "string" && typeof card.answer === "string") : [],
   };
 }
 
@@ -185,15 +184,10 @@ export async function retrieveRagContext(
   documentIds: string[],
 ) {
   const startedAt = performance.now();
-  const embeddingModel = getOllamaEmbeddingModel();
-  const documentsRequest = supabase
+  const documentsResult = await supabase
     .from("rag_documents")
-    .select("id, embedding_model")
+    .select("id, embedding_model, status")
     .in("id", documentIds);
-  const [documentsResult, queryEmbeddings] = await Promise.all([
-    documentsRequest,
-    createEmbeddings([topic], "query"),
-  ]);
   const { data: documentsData, error: documentsError } = documentsResult;
 
   if (documentsError) {
@@ -207,6 +201,7 @@ export async function retrieveRagContext(
   const documents = (documentsData ?? []) as Array<{
     id: string;
     embedding_model: string;
+    status: string;
   }>;
 
   if (documents.length !== documentIds.length) {
@@ -217,24 +212,24 @@ export async function retrieveRagContext(
     };
   }
 
-  if (
-    documents.some((document) => document.embedding_model !== embeddingModel)
-  ) {
-    return {
-      ok: false as const,
-      status: 409,
-      error:
-        "Uno o más materiales usan otro modelo de embeddings. Volvé a cargarlos con el modelo actual.",
-    };
+  if (documents.some((document) => document.status !== "ready")) {
+    return { ok: false as const, status: 409, error: "Esperá a que los materiales terminen de procesarse." };
   }
 
-  const [queryEmbedding] = queryEmbeddings;
+  if (documents.some((document) => document.embedding_model !== "supabase/gte-small")) {
+    return { ok: false as const, status: 409, error: "Este material fue indexado con el método anterior. Volvé a cargarlo para usar la búsqueda vectorial." };
+  }
+
+  const embeddingResult = await supabase.functions.invoke("embed", { body: { texts: [topic] } });
+  const vector = embeddingResult.data?.embeddings?.[0];
+  if (embeddingResult.error || !Array.isArray(vector) || vector.length !== 384 || !vector.every((value: unknown) => typeof value === "number" && Number.isFinite(value))) {
+    return { ok: false as const, status: 502, error: "No pudimos generar el vector de búsqueda." };
+  }
+
   const searchStartedAt = performance.now();
-  const { data, error } = await supabase.rpc("match_rag_chunks", {
-    p_query_embedding: queryEmbedding,
+  const { data, error } = await supabase.rpc("match_gte_chunks", {
+    p_query_embedding: vector,
     p_document_ids: documentIds,
-    p_embedding_model: embeddingModel,
-    p_match_threshold: ragMatchThreshold,
     p_match_count: ragMatchCount,
   });
 

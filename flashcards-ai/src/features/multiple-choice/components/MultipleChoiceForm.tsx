@@ -11,6 +11,8 @@ import {
 } from "@/features/study/types";
 
 interface MultipleChoiceFormProps {
+  initialTopic?: string;
+  initialLevel?: string;
   loading: boolean;
   onGenerate: (
     topic: string,
@@ -40,9 +42,11 @@ function validateTopic(topic: string) {
 export function MultipleChoiceForm({
   loading,
   onGenerate,
+  initialTopic,
+  initialLevel,
 }: MultipleChoiceFormProps) {
-  const [topic, setTopic] = useState("");
-  const [level, setLevel] = useState<EducationLevel>("university");
+  const [topic, setTopic] = useState(initialTopic?.slice(0, 100) ?? "");
+  const [level, setLevel] = useState<EducationLevel>(initialLevel === "primary" || initialLevel === "secondary" ? initialLevel : "university");
   const [count, setCount] = useState<QuestionCount>(10);
   const [validationError, setValidationError] = useState<string | null>(null);
 

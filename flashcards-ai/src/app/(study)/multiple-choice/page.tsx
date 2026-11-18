@@ -1,6 +1,7 @@
 import { MultipleChoiceGenerator } from "@/features/multiple-choice/components/MultipleChoiceGenerator";
 
-export default function MultipleChoicePage() {
+export default async function MultipleChoicePage({ searchParams }: { searchParams: Promise<{ topic?: string; level?: string }> }) {
+  const params = await searchParams;
   return (
     <div className="flex w-full flex-col items-center">
       <div className="mb-7 w-full max-w-2xl">
@@ -15,7 +16,7 @@ export default function MultipleChoicePage() {
         </p>
       </div>
 
-      <MultipleChoiceGenerator />
+      <MultipleChoiceGenerator initialTopic={params.topic} initialLevel={params.level} />
     </div>
   );
 }
