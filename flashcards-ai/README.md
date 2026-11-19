@@ -2,7 +2,7 @@
 
 Plataforma de estudio que convierte apuntes propios (PDF, TXT o texto pegado) en flashcards y preguntas de opción múltiple, y recomienda qué temas repasar según las respuestas del estudiante.
 
-## Para el profesor: probar la aplicación desplegada
+## Probar la aplicación desplegada
 
 1. Abrir la URL de la aplicación entregada junto con el trabajo y entrar en **Iniciar sesión** (`/login`).
 2. Usar la cuenta de prueba:
