@@ -26,6 +26,13 @@ docker compose up --build
 - Web: http://localhost:3000
 - Panel de RabbitMQ: http://localhost:15672 (`guest` / `guest`)
 
+Para ingresar con la cuenta de demostración:
+
+- Correo: `admin@example.com`
+- Contraseña: `admin1`
+
+Es una cuenta de usuario normal, sin permisos especiales de administrador.
+
 ## Estructura
 
 ```text
