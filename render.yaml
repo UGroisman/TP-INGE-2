@@ -1,10 +1,14 @@
+# Blueprint de Render para el worker de RabbitMQ.
+# Se declara como "web" porque el plan gratuito no ofrece Background Workers:
+# el worker abre un puerto HTTP (PORT) que responde el health check y permite
+# despertarlo cuando Render lo duerme por inactividad.
 services:
   - type: web
     name: flashcards-worker
     runtime: node
     plan: free
     rootDir: flashcards-ai
-    buildCommand: npm ci
+    buildCommand: npm ci --omit=dev
     startCommand: node worker/index.mjs
     healthCheckPath: /
     envVars:
@@ -16,5 +20,6 @@ services:
         sync: false
       - key: RABBITMQ_URL
         sync: false
+      # Opcional: sin esta clave el worker indexa pero no genera tarjetas iniciales.
       - key: AI_GATEWAY_API_KEY
         sync: false

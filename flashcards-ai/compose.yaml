@@ -1,3 +1,15 @@
+# Levanta broker, web y worker. Supabase (base, Auth, Edge Function) y
+# Vercel AI Gateway son servicios gestionados externos.
+# Uso: cp .env.example .env  (completar)  y luego  docker compose up --build
+x-app-env: &app-env
+  env_file:
+    - path: .env
+      required: false
+    - path: .env.local
+      required: false
+  environment:
+    RABBITMQ_URL: amqp://guest:guest@rabbitmq:5672
+
 services:
   rabbitmq:
     image: rabbitmq:4-management-alpine
@@ -15,11 +27,9 @@ services:
     build:
       context: .
       args:
-        NEXT_PUBLIC_SUPABASE_URL: ${NEXT_PUBLIC_SUPABASE_URL}
-        NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY: ${NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY}
-    env_file: .env.local
-    environment:
-      RABBITMQ_URL: amqp://guest:guest@rabbitmq:5672
+        NEXT_PUBLIC_SUPABASE_URL: ${NEXT_PUBLIC_SUPABASE_URL:?Configurar NEXT_PUBLIC_SUPABASE_URL en .env}
+        NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY: ${NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY:?Configurar NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY en .env}
+    <<: *app-env
     ports:
       - "3000:3000"
     depends_on:
@@ -29,12 +39,10 @@ services:
     build:
       context: .
       args:
-        NEXT_PUBLIC_SUPABASE_URL: ${NEXT_PUBLIC_SUPABASE_URL}
-        NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY: ${NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY}
+        NEXT_PUBLIC_SUPABASE_URL: ${NEXT_PUBLIC_SUPABASE_URL:?Configurar NEXT_PUBLIC_SUPABASE_URL en .env}
+        NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY: ${NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY:?Configurar NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY en .env}
     command: ["node", "worker/index.mjs"]
-    env_file: .env.local
-    environment:
-      RABBITMQ_URL: amqp://guest:guest@rabbitmq:5672
+    <<: *app-env
     depends_on:
       rabbitmq:
         condition: service_healthy
