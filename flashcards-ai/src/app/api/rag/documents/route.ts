@@ -106,7 +106,7 @@ export async function POST(request: Request) {
       await auth.supabase.from("rag_documents").delete().eq("id", documentId);
       return Response.json({ error: "No pudimos crear el trabajo." }, { status: 500 });
     }
-    try { await enqueueMaterial(job.id); } catch {
+    try { await enqueueMaterial(job.id, documentId); } catch {
       await auth.supabase.from("rag_documents").delete().eq("id", documentId);
       return Response.json({ error: "No pudimos conectar con la cola de procesamiento." }, { status: 503 });
     }

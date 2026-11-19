@@ -2,11 +2,27 @@ import amqp from "amqplib";
 import { createServer } from "node:http";
 import { createClient } from "@supabase/supabase-js";
 import { parseStarterCards, splitMaterial } from "./processing.mjs";
+import {
+  AUDIT_QUEUE,
+  DEAD_LETTER_QUEUE,
+  EVENT_TYPES,
+  MAX_ATTEMPTS,
+  PROCESSING_QUEUE,
+  assertWorkerTopology,
+  createMaterialEvent,
+  describeEvent,
+  parseMaterialEvent,
+  publishMaterialEvent,
+} from "./events.mjs";
 
 const url = process.env.NEXT_PUBLIC_SUPABASE_URL;
 const serviceKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
 const gatewayKey = process.env.AI_GATEWAY_API_KEY;
-if (!url || !serviceKey || !gatewayKey) throw new Error("Faltan credenciales para el worker.");
+if (!url || !serviceKey) throw new Error("Faltan credenciales de Supabase para el worker.");
+if (!gatewayKey) console.warn("AI_GATEWAY_API_KEY no está configurada: los materiales se indexan sin tarjetas iniciales.");
+
+// Render (plan gratuito) exige un puerto HTTP; también sirve como health check
+// y como URL para despertar el servicio cuando se duerme.
 let ready = false;
 if (process.env.PORT) {
   createServer((_request, response) => {
@@ -14,24 +30,72 @@ if (process.env.PORT) {
     response.end(ready ? "ready" : "starting");
   }).listen(Number(process.env.PORT), "0.0.0.0");
 }
+
 const db = createClient(url, serviceKey, { auth: { persistSession: false } });
 const connection = await amqp.connect(process.env.RABBITMQ_URL ?? "amqp://localhost:5672");
 connection.on("error", () => { ready = false; });
 connection.on("close", () => { ready = false; process.exit(1); });
 const channel = await connection.createConfirmChannel();
-await channel.assertQueue("material-processing", { durable: true });
-await channel.assertQueue("material-processing.dlq", { durable: true });
+await assertWorkerTopology(channel);
 await channel.prefetch(1);
-console.log("Worker esperando trabajos");
+
+// Segundo suscriptor del exchange: recibe todos los eventos material.* por su
+// propia cola. Demuestra pub/sub: el mismo evento llega a la cola de trabajo y
+// a la de auditoría sin que el productor conozca a sus consumidores.
+const auditChannel = await connection.createChannel();
+await auditChannel.prefetch(20);
+await auditChannel.consume(AUDIT_QUEUE, (message) => {
+  if (!message) return;
+  try {
+    console.log(describeEvent(parseMaterialEvent(message.content), message.fields.routingKey));
+  } catch {
+    console.warn("[auditoría] mensaje ilegible descartado");
+  }
+  auditChannel.ack(message);
+});
+
+async function publishOutcome(type, jobId, documentId) {
+  try {
+    publishMaterialEvent(channel, createMaterialEvent(type, { jobId, documentId }));
+    await channel.waitForConfirms();
+  } catch {
+    // El estado ya quedó en Supabase; perder la notificación no invalida el trabajo.
+    console.error(`No se pudo publicar ${type} para el trabajo ${jobId}`);
+  }
+}
+
+async function generateStarterCards(chunks) {
+  if (!gatewayKey) return null;
+  const schema = { type: "object", additionalProperties: false, properties: { cards: { type: "array", items: { type: "object", additionalProperties: false, properties: { question: { type: "string" }, answer: { type: "string" } }, required: ["question", "answer"] } } }, required: ["cards"] };
+  try {
+    const aiResponse = await fetch("https://ai-gateway.vercel.sh/v1/chat/completions", {
+      method: "POST", headers: { Authorization: `Bearer ${gatewayKey}`, "Content-Type": "application/json" },
+      body: JSON.stringify({ model: process.env.AI_GATEWAY_MODEL ?? "nvidia/nemotron-3.5-lightning-free", max_tokens: 8192, temperature: 0.1,
+        messages: [{ role: "system", content: `Generá exactamente tres flashcards en español basadas exclusivamente en el texto. Devolvé solo JSON válido con este esquema: ${JSON.stringify(schema)}` }, { role: "user", content: chunks.slice(0, 4).join("\n\n").slice(0, 4000) }],
+        response_format: { type: "json_schema", json_schema: { name: "starter_cards", strict: true, schema } } }),
+      signal: AbortSignal.timeout(120000),
+    });
+    if (!aiResponse.ok) throw new Error(`HTTP ${aiResponse.status}`);
+    const aiResult = await aiResponse.json();
+    return parseStarterCards(aiResult.choices?.[0]?.message?.content);
+  } catch (error) {
+    // Las tarjetas iniciales son un extra: el material ya indexado sigue disponible para RAG.
+    console.warn(`No se generaron tarjetas iniciales (${error instanceof Error ? error.message : "error desconocido"})`);
+    return null;
+  }
+}
+
+console.log(`Worker esperando trabajos en ${PROCESSING_QUEUE}`);
 ready = true;
-await channel.consume("material-processing", async (message) => {
+await channel.consume(PROCESSING_QUEUE, async (message) => {
   if (!message) return;
   let jobId;
+  let documentId = null;
   try {
-    ({ jobId } = JSON.parse(message.content.toString()));
-    if (typeof jobId !== "string") throw new Error("Mensaje inválido");
+    ({ jobId, documentId } = parseMaterialEvent(message.content));
     const { data: job, error } = await db.from("material_jobs").select("*").eq("id", jobId).single();
     if (error || !job) throw new Error("Trabajo inexistente");
+    documentId = job.document_id;
     if (job.status === "ready") { channel.ack(message); return; }
     const started = await db.from("material_jobs").update({ status: "processing", attempts: job.attempts + 1, updated_at: new Date().toISOString() }).eq("id", jobId);
     if (started.error) throw started.error;
@@ -49,30 +113,20 @@ await channel.consume("material-processing", async (message) => {
     const rows = chunks.map((content, position) => ({ document_id: job.document_id, position, content, embedding_gte: vectors[position] }));
     const result = await db.from("rag_document_chunks").upsert(rows, { onConflict: "document_id,position" });
     if (result.error) throw result.error;
-    const schema = { type: "object", additionalProperties: false, properties: { cards: { type: "array", items: { type: "object", additionalProperties: false, properties: { question: { type: "string" }, answer: { type: "string" } }, required: ["question", "answer"] } } }, required: ["cards"] };
-    const aiResponse = await fetch("https://ai-gateway.vercel.sh/v1/chat/completions", {
-      method: "POST", headers: { Authorization: `Bearer ${gatewayKey}`, "Content-Type": "application/json" },
-      body: JSON.stringify({ model: process.env.AI_GATEWAY_MODEL ?? "nvidia/nemotron-3.5-lightning-free", max_tokens: 8192, temperature: 0.1,
-        messages: [{ role: "system", content: `Generá exactamente tres flashcards en español basadas exclusivamente en el texto. Devolvé solo JSON válido con este esquema: ${JSON.stringify(schema)}` }, { role: "user", content: chunks.slice(0, 4).join("\n\n").slice(0, 4000) }],
-        response_format: { type: "json_schema", json_schema: { name: "starter_cards", strict: true, schema } } }),
-      signal: AbortSignal.timeout(120000),
-    });
-    if (!aiResponse.ok) throw new Error(`Error de generacion HTTP ${aiResponse.status}`);
-    const aiResult = await aiResponse.json();
-    const raw = aiResult.choices?.[0]?.message?.content;
-    const cards = parseStarterCards(raw);
+    const cards = await generateStarterCards(chunks);
     const done = await db.from("rag_documents").update({ status: "ready", starter_cards: cards }).eq("id", job.document_id);
     if (done.error) throw done.error;
     const saved = await db.from("material_jobs").update({ status: "ready", content: "", error: null, updated_at: new Date().toISOString() }).eq("id", jobId);
     if (saved.error) throw saved.error;
+    await publishOutcome(EVENT_TYPES.ready, jobId, job.document_id);
     channel.ack(message);
-    console.log(`Trabajo ${jobId} listo`);
+    console.log(`Trabajo ${jobId} listo (${chunks.length} fragmentos${cards ? ", 3 tarjetas iniciales" : ""})`);
   } catch {
     const attempt = Number(message.properties.headers?.attempt ?? 0) + 1;
     console.error(`Falló trabajo ${jobId ?? "inválido"}, intento ${attempt}`);
     try {
-      if (attempt < 3) {
-        channel.sendToQueue("material-processing", message.content, { persistent: true, headers: { attempt } });
+      if (attempt < MAX_ATTEMPTS) {
+        channel.sendToQueue(PROCESSING_QUEUE, message.content, { persistent: true, contentType: "application/json", headers: { attempt } });
       } else {
         if (jobId) {
           const { data: job, error: lookupError } = await db.from("material_jobs").select("document_id").eq("id", jobId).maybeSingle();
@@ -80,11 +134,13 @@ await channel.consume("material-processing", async (message) => {
           if (job) {
             const documentUpdate = await db.from("rag_documents").update({ status: "failed" }).eq("id", job.document_id);
             if (documentUpdate.error) throw documentUpdate.error;
-            const jobUpdate = await db.from("material_jobs").update({ status: "failed", error: "Falló el procesamiento; revisá el servicio de IA.", updated_at: new Date().toISOString() }).eq("id", jobId);
+            const jobUpdate = await db.from("material_jobs").update({ status: "failed", error: "Falló el procesamiento; revisá el servicio de embeddings.", updated_at: new Date().toISOString() }).eq("id", jobId);
             if (jobUpdate.error) throw jobUpdate.error;
+            documentId = job.document_id;
           }
         }
-        channel.sendToQueue("material-processing.dlq", message.content, { persistent: true, headers: { attempt } });
+        channel.sendToQueue(DEAD_LETTER_QUEUE, message.content, { persistent: true, contentType: "application/json", headers: { attempt } });
+        if (jobId) publishMaterialEvent(channel, createMaterialEvent(EVENT_TYPES.failed, { jobId, documentId }));
       }
       await channel.waitForConfirms();
       channel.ack(message);
