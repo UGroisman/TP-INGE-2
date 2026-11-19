@@ -1,11 +1,13 @@
 # Plan de accion - TP Integrador de Ingenieria de Software II
 
 **Estado general:** Implementacion parcial; entrega aun no completa  
-**Ultima actualizacion:** 17 de noviembre de 2026  
+**Ultima actualizacion:** 18 de noviembre de 2026  
 **Tecnologia elegida para el eje tecnico:** RabbitMQ (sistemas distribuidos / pub-sub)  
 **Proveedor de IA elegido:** Vercel AI Gateway
 
 ### Avance de implementacion
+
+- 18/11: RabbitMQ pasa a pub/sub con exchange `topic` `materials.events` (`material.uploaded`, `material.ready`, `material.failed`), cola de trabajo, suscriptor de auditoria y DLQ; topologia en `worker/events.mjs` con tests. Las tarjetas iniciales son opcionales: sin clave de IA el material se indexa igual. Se restauro `.env.example`, Compose acepta `.env`, se agregaron datos de prueba (`samples/`), README operativo, paso a paso de Render y white paper final. Rediseño visual de la web sin funcionalidades nuevas.
 
 - Temas a reforzar: implementada la consulta protegida por RLS, la priorizacion, los estados y el enlace a practica con tema y nivel precargados. Las pruebas unitarias cubren el orden y los umbrales; falta verificar el recorrido completo con dos temas y usuarios reales o temporales.
 - Estado vigente: modelo gratuito de texto en Vercel y embeddings `gte-small` en Supabase. Una prueba temporal autenticada paso por RabbitMQ y el worker, produjo tres tarjetas y recupero un fragmento por similitud; se verifico el bloqueo a acceso anonimo y se eliminaron los datos de prueba. Todavia falta probar la interfaz de extremo a extremo, recuperacion ante fallas, Compose autocontenido y despliegue cloud. `WHITE_PAPER.md` es un borrador con limitaciones explicitas.
@@ -86,15 +88,15 @@ Cada mensaje incluira `eventId`, `jobId`, `materialId`, `userId`, `attempt` y fe
 ### 2. RabbitMQ, eventos y procesamiento asincronico
 
 - [x] Agregar la libreria de RabbitMQ y un modulo de conexion reutilizable.
-- [ ] Definir exchange, colas durables, routing keys y DLQ.
-- [ ] Crear el contrato tipado de eventos y validarlo antes de publicar o consumir.
+- [x] Definir exchange, colas durables, routing keys y DLQ.
+- [x] Crear el contrato de eventos y validarlo antes de publicar o consumir.
 - [x] Agregar persistencia para estado del trabajo: `queued`, `processing`, `ready`, `failed`, error, intentos y timestamps.
-- [ ] Cambiar la carga de material: guardar el trabajo, publicar `material.uploaded` y responder sin esperar la IA.
+- [x] Cambiar la carga de material: guardar el trabajo, publicar `material.uploaded` y responder sin esperar la IA.
 - [x] Crear un proceso worker independiente que consuma y procese materiales.
 - [x] Ejecutar en el worker: chunking, embeddings, indexado y generacion inicial de contenido de estudio.
-- [ ] Implementar idempotencia por `jobId`/`materialId` para que un mensaje repetido no duplique resultados.
-- [ ] Implementar tres reintentos y movimiento a DLQ ante fallas recuperables.
-- [ ] Publicar `material.ready` o `material.failed` y reflejar el estado en la interfaz.
+- [x] Implementar idempotencia por `jobId`/`materialId` para que un mensaje repetido no duplique resultados.
+- [x] Implementar tres reintentos y movimiento a DLQ ante fallas recuperables.
+- [x] Publicar `material.ready` o `material.failed` y reflejar el estado en la interfaz.
 
 **Criterio de aceptacion:** subir un PDF devuelve estado `queued`; RabbitMQ entrega el evento al worker; el material termina en `ready` y se puede estudiar. Al detener la IA o el worker se observa reintento y DLQ sin perder el trabajo.
 
@@ -117,7 +119,7 @@ Cada mensaje incluira `eventId`, `jobId`, `materialId`, `userId`, `attempt` y fe
 - [ ] Crear `compose.yaml` con web, worker, RabbitMQ con panel de administracion y PostgreSQL/pgvector para los datos de la PoC.
 - [ ] Incluir health checks y esperar RabbitMQ/base antes de iniciar consumidores.
 - [ ] Agregar migraciones y datos de prueba reproducibles.
-- [ ] Documentar como inyectar credenciales de Supabase y Vercel sin agregarlas al repositorio.
+- [x] Documentar como inyectar credenciales de Supabase y Vercel sin agregarlas al repositorio.
 - [ ] Verificar desde cero `docker compose up --build` y registrar el resultado.
 
 **Criterio de aceptacion:** una persona que clone el repositorio, configure sus variables y ejecute un solo comando puede levantar todos los servicios necesarios para repetir la PoC.
@@ -125,7 +127,7 @@ Cada mensaje incluira `eventId`, `jobId`, `materialId`, `userId`, `attempt` y fe
 ### 5. Calidad, pruebas y observabilidad
 
 - [x] Completar pruebas de priorizacion y umbrales de refuerzo; las pruebas de normalizacion y distribucion adaptativa tambien pasan.
-- [ ] Agregar pruebas para contratos de eventos, idempotencia y reintentos.
+- [x] Agregar pruebas para contratos de eventos y topologia (idempotencia y reintentos se prueban con la falla controlada del README).
 - [x] Ejecutar y documentar una prueba smoke con usuario y material temporales: cola, worker, vectores, tarjetas y denegacion a anonimos. Falta automatizarla en CI sin secretos reales.
 - [ ] Registrar duracion del trabajo, intentos, estado de cola y fallas, sin registrar prompts ni datos de alumnos.
 - [x] Actualizar CI para ejecutar lint, build y pruebas.
@@ -135,11 +137,11 @@ Cada mensaje incluira `eventId`, `jobId`, `materialId`, `userId`, `attempt` y fe
 
 ### 6. Documentacion de entrega - 19 de noviembre
 
-- [ ] Reescribir README: arquitectura, prerequisitos, variables, arranque, datos de prueba, endpoints/eventos y resultados esperados.
+- [x] Reescribir README: arquitectura, prerequisitos, variables, arranque, datos de prueba, endpoints/eventos y resultados esperados.
 - [ ] Crear el diagrama de despliegue y el diagrama de secuencia del procesamiento.
-- [ ] Redactar white paper de hasta cinco paginas: problema, producto, decision RabbitMQ, comparativa, atributos de calidad, trade-offs, PoC y resultados.
-- [ ] Documentar tres escenarios de calidad medibles: rendimiento, disponibilidad y modificabilidad.
-- [ ] Documentar la comparativa RabbitMQ vs. Kafka vs. n8n y justificar la decision.
+- [x] Redactar white paper de hasta cinco paginas: problema, producto, decision RabbitMQ, comparativa, atributos de calidad, trade-offs, PoC y resultados (completar integrantes).
+- [x] Documentar escenarios de calidad medibles: rendimiento, disponibilidad, modificabilidad, escalabilidad y seguridad.
+- [x] Documentar la comparativa RabbitMQ vs. Kafka vs. pgmq vs. n8n vs. procesamiento sincronico y justificar la decision.
 - [ ] Desplegar web, worker y broker/servicios requeridos en cloud; registrar URL y credenciales de evaluacion por canal seguro.
 - [ ] Hacer una prueba de entrega desde una sesion limpia.
 
