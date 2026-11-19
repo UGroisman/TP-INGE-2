@@ -73,7 +73,7 @@ export function StudySetsManager() {
     <div className="grid gap-6">
       <form
         onSubmit={handleCreate}
-        className="rounded-lg border border-zinc-200 bg-white p-5 shadow-sm"
+        className="rounded-xl border border-zinc-200 bg-white p-6 shadow-sm"
       >
         <label
           htmlFor="study-set-topic"
@@ -106,7 +106,7 @@ export function StudySetsManager() {
         ) : null}
       </form>
 
-      <section className="rounded-lg border border-zinc-200 bg-white p-5 shadow-sm">
+      <section className="rounded-xl border border-zinc-200 bg-white p-6 shadow-sm">
         <div className="flex flex-wrap items-center justify-between gap-3">
           <div>
             <h2 className="text-xl font-semibold text-zinc-950">

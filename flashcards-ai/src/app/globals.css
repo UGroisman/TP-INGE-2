@@ -1,26 +1,228 @@
 @import "tailwindcss";
 
-:root {
-  --background: #ffffff;
-  --foreground: #171717;
-}
+/*
+ * Sistema visual "cuaderno y resaltador".
+ * Los componentes usan las clases zinc/teal de Tailwind; acá se redefinen
+ * esas escalas para que toda la app comparta una paleta cálida de papel y
+ * tinta con un acento verde pino y un amarillo resaltador.
+ */
+@theme {
+  --color-zinc-50: #f8f6f1;
+  --color-zinc-100: #f0ede5;
+  --color-zinc-200: #e4e0d5;
+  --color-zinc-300: #d1cbbd;
+  --color-zinc-400: #a49e90;
+  --color-zinc-500: #7a746a;
+  --color-zinc-600: #5c574f;
+  --color-zinc-700: #403c37;
+  --color-zinc-800: #2b2825;
+  --color-zinc-900: #1d1b19;
+  --color-zinc-950: #141311;
 
-@theme inline {
-  --color-background: var(--background);
-  --color-foreground: var(--foreground);
-  --font-sans: Arial, Helvetica, sans-serif;
-  --font-mono: "Courier New", Courier, monospace;
-}
+  --color-teal-50: #eef7f3;
+  --color-teal-100: #d6ece3;
+  --color-teal-200: #aed9c8;
+  --color-teal-300: #7dbfa8;
+  --color-teal-400: #4ca087;
+  --color-teal-500: #2c836c;
+  --color-teal-600: #1e6b58;
+  --color-teal-700: #175848;
+  --color-teal-800: #13473b;
+  --color-teal-900: #0f3a31;
+  --color-teal-950: #08221c;
 
-@media (prefers-color-scheme: dark) {
-  :root {
-    --background: #0a0a0a;
-    --foreground: #ededed;
+  --color-marker: #f5c94c;
+  --color-marker-soft: #fbe7a6;
+  --color-paper: #f4f1e9;
+  --color-ink: #141311;
+
+  --radius-sm: 0.5rem;
+  --radius-md: 0.75rem;
+  --radius-lg: 1.125rem;
+  --radius-xl: 1.5rem;
+
+  --shadow-sm: 0 1px 0 rgb(20 19 17 / 0.04), 0 1px 2px rgb(20 19 17 / 0.05),
+    0 8px 24px -12px rgb(20 19 17 / 0.12);
+  --shadow-md: 0 1px 0 rgb(20 19 17 / 0.04), 0 4px 10px rgb(20 19 17 / 0.06),
+    0 20px 40px -20px rgb(20 19 17 / 0.22);
+
+  --animate-rise: rise 0.55s cubic-bezier(0.2, 0.7, 0.2, 1) both;
+  --animate-pulse-dot: pulse-dot 1.6s ease-in-out infinite;
+
+  @keyframes rise {
+    from {
+      opacity: 0;
+      transform: translateY(10px);
+    }
+    to {
+      opacity: 1;
+      transform: translateY(0);
+    }
+  }
+
+  @keyframes pulse-dot {
+    0%,
+    100% {
+      opacity: 1;
+      transform: scale(1);
+    }
+    50% {
+      opacity: 0.45;
+      transform: scale(0.8);
+    }
   }
 }
 
+@theme inline {
+  --font-sans: var(--font-body), ui-sans-serif, system-ui, sans-serif;
+  --font-display: var(--font-display-serif), ui-serif, Georgia, serif;
+  --font-mono: var(--font-code), ui-monospace, SFMono-Regular, monospace;
+}
+
+:root {
+  color-scheme: light;
+}
+
 body {
-  background: var(--background);
-  color: var(--foreground);
-  font-family: Arial, Helvetica, sans-serif;
+  background-color: var(--color-paper);
+  color: var(--color-ink);
+  font-family: var(--font-sans);
+  font-feature-settings: "ss01", "cv11";
+}
+
+h1,
+h2,
+h3 {
+  font-family: var(--font-display);
+  font-optical-sizing: auto;
+  letter-spacing: -0.015em;
+}
+
+h1 {
+  font-variation-settings: "SOFT" 60, "WONK" 0;
+  font-weight: 600;
+}
+
+::selection {
+  background: var(--color-marker-soft);
+  color: var(--color-ink);
+}
+
+:focus-visible {
+  outline-color: var(--color-teal-600);
+}
+
+/* Fondo de hoja punteada para el área de trabajo. */
+.paper-grid {
+  background-color: var(--color-paper);
+  background-image: radial-gradient(
+    rgb(20 19 17 / 0.07) 1px,
+    transparent 1px
+  );
+  background-size: 22px 22px;
+}
+
+/* Subrayado de resaltador para palabras destacadas en títulos. */
+.marker {
+  background-image: linear-gradient(
+    transparent 58%,
+    var(--color-marker) 58%,
+    var(--color-marker) 92%,
+    transparent 92%
+  );
+  padding: 0 0.12em;
+  margin: 0 -0.06em;
+  box-decoration-break: clone;
+  -webkit-box-decoration-break: clone;
+}
+
+/* Etiqueta pequeña de sección. */
+.eyebrow {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.5rem;
+  font-family: var(--font-mono);
+  font-size: 0.72rem;
+  font-weight: 500;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--color-teal-700);
+}
+
+.eyebrow::before {
+  content: "";
+  width: 0.55rem;
+  height: 0.55rem;
+  border-radius: 2px;
+  background: var(--color-marker);
+  box-shadow: 0 0 0 1px rgb(20 19 17 / 0.12);
+}
+
+/* Panel de carga con indicador giratorio. */
+.loading-panel {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+}
+
+.loading-panel::before {
+  content: "";
+  flex: none;
+  width: 1.1rem;
+  height: 1.1rem;
+  border-radius: 9999px;
+  border: 2px solid currentColor;
+  border-right-color: transparent;
+  animation: spin 0.8s linear infinite;
+}
+
+@keyframes spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+/* Tarjeta con giro 3D. Las dos caras comparten celda para que el alto
+   se adapte al contenido más largo. */
+.flip-card {
+  perspective: 1600px;
+}
+
+.flip-card-inner {
+  display: grid;
+  transform-style: preserve-3d;
+  transition: transform 0.6s cubic-bezier(0.3, 0.7, 0.2, 1);
+}
+
+.flip-card[data-flipped="true"] .flip-card-inner {
+  transform: rotateY(180deg);
+}
+
+.flip-card-face {
+  grid-area: 1 / 1;
+  backface-visibility: hidden;
+  -webkit-backface-visibility: hidden;
+}
+
+.flip-card-back {
+  transform: rotateY(180deg);
+}
+
+/* Barra de navegación horizontal sin scrollbar visible en mobile. */
+.no-scrollbar {
+  scrollbar-width: none;
+}
+
+.no-scrollbar::-webkit-scrollbar {
+  display: none;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+  }
 }

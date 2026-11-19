@@ -1,5 +1,7 @@
 "use client";
 
+import { ArrowLeftIcon, ArrowRightIcon } from "@/components/icons";
+import { DeckProgress } from "@/components/DeckProgress";
 import { useState } from "react";
 import { Flashcard } from "@/features/flashcards/components/Flashcard";
 import type { Flashcard as FlashcardType } from "@/features/flashcards/types";
@@ -26,12 +28,7 @@ export function FlashcardDeck({
 
   return (
     <section className="mt-8 w-full max-w-2xl" aria-live="polite">
-      <div className="mb-3 flex items-center justify-between gap-4">
-        <p className="text-sm font-medium text-zinc-600">
-          {currentIndex + 1} / {flashcards.length}
-        </p>
-        <p className="text-sm text-zinc-500">Tarjeta {currentIndex + 1}</p>
-      </div>
+      <DeckProgress current={currentIndex} total={flashcards.length} label="Tarjeta" />
 
       <Flashcard
         key={currentIndex}
@@ -46,17 +43,19 @@ export function FlashcardDeck({
           type="button"
           onClick={() => setCurrentIndex((index) => index - 1)}
           disabled={isFirstCard}
-          className="rounded-md border border-zinc-300 bg-white px-4 py-3 font-semibold text-zinc-900 transition hover:bg-zinc-100 focus:outline-none focus:ring-2 focus:ring-teal-600 focus:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-45"
+          className="inline-flex items-center justify-center gap-2 rounded-md border border-zinc-300 bg-white px-4 py-3 font-semibold text-zinc-900 transition hover:bg-zinc-100 focus:outline-none focus:ring-2 focus:ring-teal-600 focus:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-40"
         >
+          <ArrowLeftIcon />
           Anterior
         </button>
         <button
           type="button"
           onClick={() => setCurrentIndex((index) => index + 1)}
           disabled={isLastCard}
-          className="rounded-md bg-teal-700 px-4 py-3 font-semibold text-white transition hover:bg-teal-800 focus:outline-none focus:ring-2 focus:ring-teal-600 focus:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-45"
+          className="inline-flex items-center justify-center gap-2 rounded-md bg-teal-700 px-4 py-3 font-semibold text-white transition hover:bg-teal-800 focus:outline-none focus:ring-2 focus:ring-teal-600 focus:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-40"
         >
           Siguiente
+          <ArrowRightIcon />
         </button>
       </div>
     </section>

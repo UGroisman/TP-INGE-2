@@ -14,8 +14,8 @@ export default async function RegisterPage({
   const redirectPath = getSafeRedirectPath(params.next);
 
   return (
-    <main className="flex min-h-screen items-center justify-center bg-zinc-50 px-4 py-8 text-zinc-950">
+    <>
       <RegisterForm redirectPath={redirectPath} />
-    </main>
+    </>
   );
 }

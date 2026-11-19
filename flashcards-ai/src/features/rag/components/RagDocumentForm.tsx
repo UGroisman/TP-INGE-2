@@ -15,6 +15,7 @@ import {
   createRagDocumentFromText,
 } from "@/features/rag/services/rag";
 import type { RagDocument } from "@/features/rag/types";
+import { UploadIcon } from "@/components/icons";
 
 type MaterialInputMode = "text" | "file";
 
@@ -108,7 +109,9 @@ export function RagDocumentForm({ onCreated }: RagDocumentFormProps) {
 
       onCreated(createdDocument);
       resetForm();
-      setMessage("Material procesado y guardado correctamente.");
+      setMessage(
+        "Material recibido. Quedó en cola y se procesa en segundo plano; su estado se actualiza solo.",
+      );
     } catch (requestError) {
       setFormError(
         requestError instanceof Error
@@ -133,8 +136,19 @@ export function RagDocumentForm({ onCreated }: RagDocumentFormProps) {
   return (
     <form
       onSubmit={handleSubmit}
-      className="rounded-lg border border-zinc-200 bg-white p-5 shadow-sm"
+      className="rounded-xl border border-zinc-200 bg-white p-6 shadow-sm"
     >
+      <div className="mb-5 flex items-start gap-3 border-b border-zinc-100 pb-5">
+        <span className="grid size-10 shrink-0 place-items-center rounded-md bg-marker text-xl text-zinc-950">
+          <UploadIcon />
+        </span>
+        <div>
+          <h2 className="text-xl text-zinc-950">Cargar material</h2>
+          <p className="mt-0.5 text-sm text-zinc-500">
+            Se publica en la cola y un worker lo indexa en segundo plano.
+          </p>
+        </div>
+      </div>
       <div>
         <label
           htmlFor="rag-document-name"
@@ -219,7 +233,7 @@ export function RagDocumentForm({ onCreated }: RagDocumentFormProps) {
             accept={ragFileInputAccept}
             onChange={handleFileChange}
             disabled={submitting}
-            className="mt-2 block w-full rounded-md border border-zinc-300 bg-white text-sm text-zinc-700 file:mr-4 file:border-0 file:border-r file:border-zinc-300 file:bg-zinc-100 file:px-4 file:py-3 file:font-semibold file:text-zinc-800 hover:file:bg-zinc-200 disabled:cursor-wait disabled:bg-zinc-100"
+            className="mt-2 block w-full cursor-pointer rounded-lg border-2 border-dashed border-zinc-300 bg-zinc-50 p-3 text-sm text-zinc-600 transition hover:border-teal-500 hover:bg-teal-50/50 file:mr-4 file:cursor-pointer file:rounded-md file:border-0 file:bg-zinc-950 file:px-4 file:py-2.5 file:font-semibold file:text-white hover:file:bg-zinc-800 disabled:cursor-wait disabled:opacity-60"
           />
           <p className="mt-2 text-xs leading-5 text-zinc-500">
             Hasta 5 MB. Los PDF pueden tener hasta {ragPdfMaxPages} páginas y
@@ -242,12 +256,13 @@ export function RagDocumentForm({ onCreated }: RagDocumentFormProps) {
       <button
         type="submit"
         disabled={submitting}
-        className="mt-5 min-h-12 rounded-md bg-zinc-950 px-4 py-3 font-semibold text-white transition hover:bg-zinc-800 focus:outline-none focus:ring-2 focus:ring-teal-600 focus:ring-offset-2 disabled:cursor-wait disabled:opacity-60"
+        className="mt-5 inline-flex min-h-12 items-center gap-2 rounded-md bg-zinc-950 px-5 py-3 font-semibold text-white transition hover:bg-zinc-800 focus:outline-none focus:ring-2 focus:ring-teal-600 focus:ring-offset-2 disabled:cursor-wait disabled:opacity-60"
       >
+        <UploadIcon />
         {submitting
           ? mode === "file"
-            ? "Procesando archivo..."
-            : "Procesando material..."
+            ? "Enviando archivo..."
+            : "Enviando material..."
           : "Guardar material"}
       </button>
 

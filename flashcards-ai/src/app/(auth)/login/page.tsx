@@ -12,8 +12,8 @@ export default async function LoginPage({ searchParams }: LoginPageProps) {
   const redirectPath = getSafeRedirectPath(params.next);
 
   return (
-    <main className="flex min-h-screen items-center justify-center bg-zinc-50 px-4 py-8 text-zinc-950">
+    <>
       <LoginForm redirectPath={redirectPath} />
-    </main>
+    </>
   );
 }

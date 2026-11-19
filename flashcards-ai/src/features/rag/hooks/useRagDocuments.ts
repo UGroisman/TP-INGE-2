@@ -27,6 +27,16 @@ export function useRagDocuments() {
     }
   }, []);
 
+  // Actualiza estados en segundo plano sin mostrar la carga ni vaciar la lista.
+  const refresh = useCallback(async () => {
+    try {
+      setDocuments(await getRagDocuments());
+      setError(null);
+    } catch {
+      // Se conserva la última lista conocida; el próximo intento la actualiza.
+    }
+  }, []);
+
   useEffect(() => {
     let ignore = false;
 
@@ -58,5 +68,5 @@ export function useRagDocuments() {
     };
   }, []);
 
-  return { documents, loading, error, reload, setDocuments };
+  return { documents, loading, error, reload, refresh, setDocuments };
 }

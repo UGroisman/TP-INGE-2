@@ -69,7 +69,7 @@ export function StudySetDetailLoader({
 
   if (loading) {
     return (
-      <div className="rounded-lg border border-teal-200 bg-teal-50 p-4 text-sm font-medium text-teal-900">
+      <div className="loading-panel rounded-lg border border-teal-200 bg-teal-50 p-4 text-sm font-medium text-teal-900">
         Cargando study set...
       </div>
     );

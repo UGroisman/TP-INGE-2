@@ -10,11 +10,11 @@ export function StudySetDetailView({ studySet }: StudySetDetailViewProps) {
 
   return (
     <div className="grid gap-6">
-      <section className="rounded-lg border border-zinc-200 bg-white p-5 shadow-sm">
-        <p className="text-sm font-semibold uppercase tracking-wide text-teal-700">
+      <section className="rounded-xl border border-zinc-200 bg-white p-6 shadow-sm">
+        <p className="eyebrow">
           Study set
         </p>
-        <h1 className="mt-2 text-4xl font-bold tracking-normal text-zinc-950">
+        <h1 className="mt-3 text-4xl leading-tight text-zinc-950">
           {studySet.topic}
         </h1>
         <p className="mt-3 text-sm text-zinc-500">
@@ -22,7 +22,7 @@ export function StudySetDetailView({ studySet }: StudySetDetailViewProps) {
         </p>
       </section>
 
-      <section className="rounded-lg border border-zinc-200 bg-white p-5 shadow-sm">
+      <section className="rounded-xl border border-zinc-200 bg-white p-6 shadow-sm">
         <h2 className="text-xl font-semibold text-zinc-950">Flashcards</h2>
 
         {studySet.flashcards.length === 0 ? (
@@ -51,7 +51,7 @@ export function StudySetDetailView({ studySet }: StudySetDetailViewProps) {
         )}
       </section>
 
-      <section className="rounded-lg border border-zinc-200 bg-white p-5 shadow-sm">
+      <section className="rounded-xl border border-zinc-200 bg-white p-6 shadow-sm">
         <h2 className="text-xl font-semibold text-zinc-950">
           Opción múltiple
         </h2>

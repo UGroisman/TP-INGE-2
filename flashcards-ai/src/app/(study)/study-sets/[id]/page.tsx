@@ -1,4 +1,5 @@
 import Link from "next/link";
+import { ArrowLeftIcon } from "@/components/icons";
 import { redirect } from "next/navigation";
 import { SessionUnavailable } from "@/features/auth/components/SessionUnavailable";
 import { getServerAuthState } from "@/features/auth/server";
@@ -30,8 +31,9 @@ export default async function StudySetDetailPage({
       <div className="mb-6">
         <Link
           href="/study-sets"
-          className="text-sm font-semibold text-teal-700 hover:text-teal-900"
+          className="inline-flex items-center gap-2 rounded-md text-sm font-semibold text-teal-700 transition hover:text-teal-900 focus:outline-none focus-visible:ring-2 focus-visible:ring-teal-600"
         >
+          <ArrowLeftIcon />
           Volver a study sets
         </Link>
       </div>

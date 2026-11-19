@@ -23,11 +23,11 @@ export function RegisterForm({ redirectPath }: RegisterFormProps) {
   );
 
   return (
-    <div className="w-full max-w-md rounded-lg border border-zinc-200 bg-white p-6 shadow-sm">
-      <p className="text-sm font-semibold uppercase tracking-wide text-teal-700">
+    <div className="w-full rounded-xl border border-zinc-200 bg-white p-7 shadow-md sm:p-8">
+      <p className="eyebrow">
         Registro
       </p>
-      <h1 className="mt-2 text-3xl font-bold tracking-normal text-zinc-950">
+      <h1 className="mt-3 text-[2.1rem] leading-tight text-zinc-950">
         Crear cuenta
       </h1>
       <p className="mt-2 text-sm leading-6 text-zinc-600">

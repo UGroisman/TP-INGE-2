@@ -55,7 +55,7 @@ export function FlashcardGenerator() {
       {loading ? (
         <div
           role="status"
-          className="mt-8 w-full max-w-2xl rounded-lg border border-teal-200 bg-teal-50 p-4 text-sm font-medium text-teal-900"
+          className="mt-8 w-full max-w-2xl loading-panel rounded-lg border border-teal-200 bg-teal-50 p-4 text-sm font-medium text-teal-900"
         >
           Generando flashcards...
         </div>

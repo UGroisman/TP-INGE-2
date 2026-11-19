@@ -4,9 +4,11 @@ import { useEffect, useState } from "react";
 import { RagDocumentForm } from "@/features/rag/components/RagDocumentForm";
 import { useRagDocuments } from "@/features/rag/hooks/useRagDocuments";
 import { deleteRagDocument } from "@/features/rag/services/rag";
+import { ArrowRightIcon, FileIcon, TrashIcon } from "@/components/icons";
 
 export function RagDocumentsManager() {
-  const { documents, loading, error, reload, setDocuments } = useRagDocuments();
+  const { documents, loading, error, reload, refresh, setDocuments } =
+    useRagDocuments();
   const [deletingId, setDeletingId] = useState<string | null>(null);
   const [actionError, setActionError] = useState<string | null>(null);
   const [message, setMessage] = useState<string | null>(null);
@@ -14,9 +16,9 @@ export function RagDocumentsManager() {
 
   useEffect(() => {
     if (!hasPending) return;
-    const timer = window.setInterval(() => void reload(), 5000);
+    const timer = window.setInterval(() => void refresh(), 5000);
     return () => window.clearInterval(timer);
-  }, [hasPending, reload]);
+  }, [hasPending, refresh]);
 
   useEffect(() => {
     const wakeUrl = process.env.NEXT_PUBLIC_WORKER_WAKE_URL;
@@ -83,13 +85,13 @@ export function RagDocumentsManager() {
               Elegilos desde cualquiera de los dos modos RAG.
             </p>
           </div>
-          <span className="text-sm font-semibold text-zinc-500">
+          <span className="rounded-full border border-zinc-200 bg-white px-3 py-1 font-mono text-xs text-zinc-500">
             {documents.length} guardados
           </span>
         </div>
 
         {loading ? (
-          <p className="mt-4 text-sm font-medium text-teal-700">
+          <p className="loading-panel mt-4 text-sm font-medium text-teal-700">
             Cargando materiales...
           </p>
         ) : null}
@@ -120,35 +122,56 @@ export function RagDocumentsManager() {
         ) : null}
 
         {!loading && !error && documents.length === 0 ? (
-          <p className="mt-4 rounded-md border border-zinc-200 bg-white p-5 text-sm text-zinc-600">
+          <div className="mt-4 flex items-center gap-3 rounded-xl border border-dashed border-zinc-300 bg-white/70 p-6 text-sm text-zinc-600">
+            <FileIcon className="shrink-0 text-2xl text-zinc-400" />
             Todavía no hay materiales. Cargá el primero con el formulario.
-          </p>
+          </div>
         ) : null}
 
         {!loading && !error && documents.length > 0 ? (
-          <div className="mt-4 grid gap-3 sm:grid-cols-2">
+          <div className="mt-4 grid gap-3 sm:grid-cols-2 xl:grid-cols-3">
             {documents.map((document) => (
               <article
                 key={document.id}
-                className="flex min-h-36 flex-col justify-between rounded-lg border border-zinc-200 bg-white p-4 shadow-sm"
+                className="flex min-h-40 flex-col justify-between rounded-xl border border-zinc-200 bg-white p-5 shadow-sm transition hover:shadow-md"
               >
                 <div>
-                  <h3 className="break-words font-semibold text-zinc-950">
+                  <div className="flex items-start justify-between gap-3">
+                    <span className="grid size-9 shrink-0 place-items-center rounded-md bg-zinc-100 text-lg text-zinc-600">
+                      <FileIcon />
+                    </span>
+                    <StatusBadge status={document.status} />
+                  </div>
+                  <h3 className="mt-4 break-words text-lg leading-snug text-zinc-950">
                     {document.name}
                   </h3>
-                  <p className="mt-2 text-sm text-zinc-500">
-                    {document.chunkCount} fragmentos ·{" "}
-                    {formatDate(document.createdAt)}
+                  <p className="mt-1 font-mono text-xs text-zinc-500">
+                    {document.chunkCount} fragmentos · {formatDate(document.createdAt)}
                   </p>
-                  <p className="mt-2 text-sm font-semibold">{document.status === "queued" ? "En cola" : document.status === "processing" ? "Procesando" : document.status === "failed" ? "Error al procesar" : "Listo para estudiar"}</p>
-                  {document.starterCards && document.starterCards.length > 0 ? <details className="mt-3 text-sm"><summary className="cursor-pointer font-semibold text-teal-800">Ver tarjetas iniciales</summary><ol className="mt-2 space-y-3">{document.starterCards.map((card, index) => <li key={index}><strong>{card.question}</strong><p>{card.answer}</p></li>)}</ol></details> : null}
+                  {document.starterCards && document.starterCards.length > 0 ? (
+                    <details className="group mt-4 rounded-lg border border-zinc-200 bg-zinc-50 text-sm">
+                      <summary className="flex cursor-pointer list-none items-center justify-between gap-2 px-3 py-2 font-semibold text-teal-800 [&::-webkit-details-marker]:hidden">
+                        Ver tarjetas iniciales
+                        <ArrowRightIcon className="transition group-open:rotate-90" />
+                      </summary>
+                      <ol className="grid gap-3 border-t border-zinc-200 px-3 py-3">
+                        {document.starterCards.map((card, index) => (
+                          <li key={index}>
+                            <strong className="font-semibold text-zinc-900">{card.question}</strong>
+                            <p className="mt-0.5 leading-6 text-zinc-600">{card.answer}</p>
+                          </li>
+                        ))}
+                      </ol>
+                    </details>
+                  ) : null}
                 </div>
                 <button
                   type="button"
                   onClick={() => void handleDelete(document.id, document.name)}
                   disabled={deletingId === document.id}
-                  className="mt-4 self-start rounded-md border border-red-200 px-3 py-2 text-sm font-semibold text-red-700 transition hover:bg-red-50 focus:outline-none focus:ring-2 focus:ring-red-600 focus:ring-offset-2 disabled:cursor-wait disabled:opacity-60"
+                  className="mt-5 inline-flex items-center gap-2 self-start rounded-md px-2 py-1.5 text-sm font-semibold text-zinc-500 transition hover:bg-red-50 hover:text-red-700 focus:outline-none focus:ring-2 focus:ring-red-600 focus:ring-offset-2 disabled:cursor-wait disabled:opacity-60"
                 >
+                  <TrashIcon />
                   {deletingId === document.id ? "Eliminando..." : "Eliminar"}
                 </button>
               </article>
@@ -157,6 +180,24 @@ export function RagDocumentsManager() {
         ) : null}
       </section>
     </div>
+  );
+}
+
+const statusStyles = {
+  queued: { label: "En cola", className: "bg-amber-50 text-amber-800 ring-amber-200", dot: "bg-amber-500 animate-pulse-dot" },
+  processing: { label: "Procesando", className: "bg-teal-50 text-teal-800 ring-teal-200", dot: "bg-teal-600 animate-pulse-dot" },
+  failed: { label: "Error al procesar", className: "bg-red-50 text-red-700 ring-red-200", dot: "bg-red-600" },
+  ready: { label: "Listo para estudiar", className: "bg-emerald-50 text-emerald-800 ring-emerald-200", dot: "bg-emerald-600" },
+} as const;
+
+function StatusBadge({ status = "ready" }: { status?: keyof typeof statusStyles }) {
+  const style = statusStyles[status];
+
+  return (
+    <span className={`inline-flex items-center gap-1.5 rounded-full px-2.5 py-1 text-xs font-semibold ring-1 ${style.className}`}>
+      <span className={`size-1.5 rounded-full ${style.dot}`} />
+      {style.label}
+    </span>
   );
 }
 

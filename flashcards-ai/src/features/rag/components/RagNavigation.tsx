@@ -2,11 +2,12 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
+import { CardsIcon, ChecklistIcon, LibraryIcon } from "@/components/icons";
 
 const items = [
-  { href: "/rag", label: "Materiales" },
-  { href: "/rag/flashcards", label: "Flashcards" },
-  { href: "/rag/multiple-choice", label: "Opción múltiple" },
+  { href: "/rag", label: "Materiales", icon: LibraryIcon },
+  { href: "/rag/flashcards", label: "Flashcards", icon: CardsIcon },
+  { href: "/rag/multiple-choice", label: "Opción múltiple", icon: ChecklistIcon },
 ];
 
 export function RagNavigation() {
@@ -15,26 +16,30 @@ export function RagNavigation() {
   return (
     <nav
       aria-label="Secciones de RAG"
-      className="mb-7 flex flex-wrap gap-2 border-b border-zinc-200 pb-4"
+      className="no-scrollbar mb-8 flex w-full overflow-x-auto"
     >
-      {items.map((item) => {
-        const isActive = pathname === item.href;
+      <div className="inline-flex gap-1 rounded-lg border border-zinc-200 bg-white p-1 shadow-sm">
+        {items.map((item) => {
+          const isActive = pathname === item.href;
+          const Icon = item.icon;
 
-        return (
-          <Link
-            key={item.href}
-            href={item.href}
-            aria-current={isActive ? "page" : undefined}
-            className={`rounded-md px-3 py-2 text-sm font-semibold transition focus:outline-none focus:ring-2 focus:ring-teal-600 focus:ring-offset-2 ${
-              isActive
-                ? "bg-teal-700 text-white"
-                : "border border-zinc-300 bg-white text-zinc-700 hover:bg-zinc-100"
-            }`}
-          >
-            {item.label}
-          </Link>
-        );
-      })}
+          return (
+            <Link
+              key={item.href}
+              href={item.href}
+              aria-current={isActive ? "page" : undefined}
+              className={`flex shrink-0 items-center gap-2 rounded-md px-3.5 py-2 text-sm font-semibold transition focus:outline-none focus-visible:ring-2 focus-visible:ring-teal-600 ${
+                isActive
+                  ? "bg-zinc-950 text-white"
+                  : "text-zinc-600 hover:bg-zinc-100 hover:text-zinc-950"
+              }`}
+            >
+              <Icon className={isActive ? "text-marker" : "text-zinc-400"} />
+              {item.label}
+            </Link>
+          );
+        })}
+      </div>
     </nav>
   );
 }

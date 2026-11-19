@@ -134,7 +134,7 @@ export function RagMultipleChoiceGenerator() {
     <>
       <form
         onSubmit={handleSubmit}
-        className="w-full max-w-2xl rounded-lg border border-zinc-200 bg-white p-5 shadow-sm"
+        className="w-full max-w-2xl rounded-xl border border-zinc-200 bg-white p-6 shadow-sm"
       >
         <div className="grid gap-4 sm:grid-cols-[1fr_150px_110px]">
           <div>
@@ -232,7 +232,7 @@ export function RagMultipleChoiceGenerator() {
       {loading ? (
         <div
           role="status"
-          className="mt-8 w-full max-w-2xl rounded-lg border border-teal-200 bg-teal-50 p-4 text-sm font-medium text-teal-900"
+          className="mt-8 w-full max-w-2xl loading-panel rounded-lg border border-teal-200 bg-teal-50 p-4 text-sm font-medium text-teal-900"
         >
           Buscando contexto y generando preguntas...
         </div>

@@ -67,7 +67,7 @@ export function MultipleChoiceForm({
   return (
     <form
       onSubmit={handleSubmit}
-      className="w-full max-w-2xl rounded-lg border border-zinc-200 bg-white p-5 shadow-sm"
+      className="w-full max-w-2xl rounded-xl border border-zinc-200 bg-white p-6 shadow-sm"
     >
       <div className="grid gap-4 sm:grid-cols-[1fr_160px_120px]">
         <div>

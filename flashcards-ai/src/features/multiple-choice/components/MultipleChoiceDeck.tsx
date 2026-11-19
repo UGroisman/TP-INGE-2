@@ -1,5 +1,12 @@
 "use client";
 
+import {
+  ArrowLeftIcon,
+  ArrowRightIcon,
+  CheckIcon,
+  CrossIcon,
+} from "@/components/icons";
+import { DeckProgress } from "@/components/DeckProgress";
 import { useState } from "react";
 import type { MultipleChoiceQuestion } from "@/features/multiple-choice/types";
 import type { ReactNode } from "react";
@@ -99,15 +106,11 @@ export function MultipleChoiceDeck({
 
   return (
     <section className="mt-8 w-full max-w-2xl" aria-live="polite">
-      <div className="mb-3 flex items-center justify-between gap-4">
-        <p className="text-sm font-medium text-zinc-600">
-          {currentIndex + 1} / {questions.length}
-        </p>
-        <p className="text-sm text-zinc-500">Pregunta {currentIndex + 1}</p>
-      </div>
+      <DeckProgress current={currentIndex} total={questions.length} label="Pregunta" />
 
-      <article className="rounded-lg border border-zinc-200 bg-white p-6 shadow-sm">
-        <h2 className="text-2xl font-semibold leading-8 text-zinc-950">
+      <article className="rounded-xl border border-zinc-200 bg-white p-6 shadow-md sm:p-7">
+        <p className="eyebrow">Elegí una opción</p>
+        <h2 className="mt-4 text-[1.6rem] leading-snug text-zinc-950">
           {currentQuestion.question}
         </h2>
 
@@ -129,10 +132,28 @@ export function MultipleChoiceDeck({
                   isCorrectOption,
                 )}
               >
-                <span className="font-semibold">
-                  {String.fromCharCode(65 + optionIndex)}.
-                </span>{" "}
-                {option}
+                <span
+                  aria-hidden="true"
+                  className={getOptionBadgeClassName(
+                    hasSelectedOption,
+                    isSelected,
+                    isCorrectOption,
+                  )}
+                >
+                  {hasSelectedOption && isCorrectOption ? (
+                    <CheckIcon />
+                  ) : hasSelectedOption && isSelected ? (
+                    <CrossIcon />
+                  ) : (
+                    String.fromCharCode(65 + optionIndex)
+                  )}
+                </span>
+                <span>
+                  <span className="sr-only">
+                    {String.fromCharCode(65 + optionIndex)}.{" "}
+                  </span>
+                  {option}
+                </span>
               </button>
             );
           })}
@@ -140,12 +161,17 @@ export function MultipleChoiceDeck({
 
         {hasSelectedOption ? (
           <p
-            className={`mt-5 rounded-md p-3 text-sm font-semibold ${
+            className={`mt-5 flex items-center gap-2 rounded-md border p-3 text-sm font-semibold ${
               isCorrect
-                ? "bg-emerald-50 text-emerald-800"
-                : "bg-red-50 text-red-800"
+                ? "border-emerald-200 bg-emerald-50 text-emerald-800"
+                : "border-red-200 bg-red-50 text-red-800"
             }`}
           >
+            {isCorrect ? (
+              <CheckIcon className="text-base" />
+            ) : (
+              <CrossIcon className="text-base" />
+            )}
             {isCorrect
               ? "Correcto."
               : `Incorrecto. La respuesta correcta era ${String.fromCharCode(
@@ -193,17 +219,19 @@ export function MultipleChoiceDeck({
           type="button"
           onClick={() => setCurrentIndex((index) => index - 1)}
           disabled={isFirstQuestion}
-          className="rounded-md border border-zinc-300 bg-white px-4 py-3 font-semibold text-zinc-900 transition hover:bg-zinc-100 focus:outline-none focus:ring-2 focus:ring-teal-600 focus:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-45"
+          className="inline-flex items-center justify-center gap-2 rounded-md border border-zinc-300 bg-white px-4 py-3 font-semibold text-zinc-900 transition hover:bg-zinc-100 focus:outline-none focus:ring-2 focus:ring-teal-600 focus:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-40"
         >
+          <ArrowLeftIcon />
           Anterior
         </button>
         <button
           type="button"
           onClick={() => setCurrentIndex((index) => index + 1)}
           disabled={isLastQuestion}
-          className="rounded-md bg-teal-700 px-4 py-3 font-semibold text-white transition hover:bg-teal-800 focus:outline-none focus:ring-2 focus:ring-teal-600 focus:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-45"
+          className="inline-flex items-center justify-center gap-2 rounded-md bg-teal-700 px-4 py-3 font-semibold text-white transition hover:bg-teal-800 focus:outline-none focus:ring-2 focus:ring-teal-600 focus:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-40"
         >
           Siguiente
+          <ArrowRightIcon />
         </button>
       </div>
     </section>
@@ -216,10 +244,10 @@ function getOptionClassName(
   isCorrectOption: boolean,
 ) {
   const baseClassName =
-    "rounded-md border px-4 py-3 text-left text-zinc-900 transition focus:outline-none focus:ring-2 focus:ring-teal-600 focus:ring-offset-2";
+    "group flex items-center gap-3 rounded-lg border px-3 py-3 text-left text-zinc-900 transition focus:outline-none focus:ring-2 focus:ring-teal-600 focus:ring-offset-2";
 
   if (!hasSelectedOption) {
-    return `${baseClassName} border-zinc-300 bg-white hover:bg-zinc-100`;
+    return `${baseClassName} border-zinc-200 bg-white hover:border-teal-500 hover:bg-teal-50/60`;
   }
 
   if (isCorrectOption) {
@@ -231,4 +259,27 @@ function getOptionClassName(
   }
 
   return `${baseClassName} border-zinc-200 bg-zinc-50 text-zinc-500`;
+}
+
+function getOptionBadgeClassName(
+  hasSelectedOption: boolean,
+  isSelected: boolean,
+  isCorrectOption: boolean,
+) {
+  const baseClassName =
+    "grid size-8 shrink-0 place-items-center rounded-md font-mono text-sm font-medium transition";
+
+  if (!hasSelectedOption) {
+    return `${baseClassName} bg-zinc-100 text-zinc-600 group-hover:bg-teal-700 group-hover:text-white`;
+  }
+
+  if (isCorrectOption) {
+    return `${baseClassName} bg-emerald-600 text-white`;
+  }
+
+  if (isSelected) {
+    return `${baseClassName} bg-red-600 text-white`;
+  }
+
+  return `${baseClassName} bg-zinc-200 text-zinc-400`;
 }
