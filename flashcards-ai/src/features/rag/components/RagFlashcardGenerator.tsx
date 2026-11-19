@@ -1,6 +1,8 @@
 "use client";
 
 import { FormEvent, useState } from "react";
+import Link from "next/link";
+import { startBackgroundGeneration } from "@/features/study-sets/services/generationJobs";
 import { FlashcardDeck } from "@/features/flashcards/components/FlashcardDeck";
 import type { Flashcard } from "@/features/flashcards/types";
 import { maxSelectedRagDocuments } from "@/features/rag/constants";
@@ -34,6 +36,7 @@ export function RagFlashcardGenerator() {
     useState<RagFlashcardRequestState | null>(null);
   const [deckVersion, setDeckVersion] = useState(0);
   const [loading, setLoading] = useState(false);
+  const [queued, setQueued] = useState(false);
   const [validationError, setValidationError] = useState<string | null>(null);
   const [requestError, setRequestError] = useState<string | null>(null);
 
@@ -75,10 +78,16 @@ export function RagFlashcardGenerator() {
 
   async function handleGenerate(request: RagFlashcardRequestState) {
     setLoading(true);
+    setQueued(false);
     setRequestError(null);
     setLastRequest(request);
 
     try {
+      if (await startBackgroundGeneration({ kind: "flashcards", ...request })) {
+        setCards([]);
+        setQueued(true);
+        return;
+      }
       const generatedCards = await generateRagFlashcards(
         request.topic,
         request.level,
@@ -172,6 +181,8 @@ export function RagFlashcardGenerator() {
           {loading ? "Generando..." : "Generar flashcards con RAG"}
         </button>
       </form>
+
+      {queued ? <p role="status" className="mt-8 w-full max-w-2xl rounded-lg bg-teal-50 p-4 text-teal-900">Generación en curso. Podés seguir usando la aplicación y consultar el resultado en <Link className="font-semibold underline" href="/study-sets">tus study sets</Link>.</p> : null}
 
       {loading ? (
         <div

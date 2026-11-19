@@ -7,6 +7,7 @@ import {
   getStudySets,
 } from "@/features/study-sets/services/studySets";
 import type { StudySetSummary } from "@/features/study-sets/types";
+import { GenerationJobs } from "@/features/study-sets/components/GenerationJobs";
 
 export function StudySetsManager() {
   const [studySets, setStudySets] = useState<StudySetSummary[]>([]);
@@ -71,6 +72,7 @@ export function StudySetsManager() {
 
   return (
     <div className="grid gap-6">
+      <GenerationJobs />
       <form
         onSubmit={handleCreate}
         className="rounded-xl border border-zinc-200 bg-white p-6 shadow-sm"
@@ -113,8 +115,7 @@ export function StudySetsManager() {
               Tus study sets
             </h2>
             <p className="mt-1 text-sm text-zinc-500">
-              Acá vas a encontrar el contenido que guardes de a una tarjeta o
-              pregunta.
+              Acá vas a encontrar tus sets y el contenido generado.
             </p>
           </div>
           <button

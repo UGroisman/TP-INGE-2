@@ -1,4 +1,5 @@
 import type { StudySetDetail } from "@/features/study-sets/types";
+import { SavedQuizPractice } from "@/features/study-sets/components/SavedQuizPractice";
 
 interface StudySetDetailViewProps {
   studySet: StudySetDetail;
@@ -10,6 +11,7 @@ export function StudySetDetailView({ studySet }: StudySetDetailViewProps) {
 
   return (
     <div className="grid gap-6">
+      <SavedQuizPractice studySet={studySet} />
       <section className="rounded-xl border border-zinc-200 bg-white p-6 shadow-sm">
         <p className="eyebrow">
           Study set

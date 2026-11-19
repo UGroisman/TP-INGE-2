@@ -1,5 +1,7 @@
 import type { Flashcard } from "@/features/flashcards/types";
 import type { MultipleChoiceQuestion } from "@/features/multiple-choice/types";
+import type { AdaptiveDifficulty, MultipleChoiceSource } from "@/features/adaptive-learning/types";
+import type { EducationLevel } from "@/features/study/types";
 
 export interface StudySetSummary {
   id: string;
@@ -21,11 +23,13 @@ export interface SavedMultipleChoiceQuestion {
   id: string;
   question: string;
   options: SavedMultipleChoiceOption[];
+  difficulty?: AdaptiveDifficulty | null;
 }
 
 export interface StudySetDetail extends StudySetSummary {
   flashcards: SavedFlashcard[];
   multipleChoiceQuestions: SavedMultipleChoiceQuestion[];
+  generation?: { level: EducationLevel; source: MultipleChoiceSource } | null;
 }
 
 export interface StudySetsResponse {

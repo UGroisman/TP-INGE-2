@@ -22,6 +22,7 @@ interface FlashcardRow {
 interface MultipleChoiceQuestionRow {
   id: string;
   question: string;
+  generation_difficulty: "easy" | "medium" | "hard" | null;
 }
 
 interface MultipleChoiceOptionRow {
@@ -208,7 +209,7 @@ export async function getStudySetDetail(studySetId: string) {
 
   const { data: questionsData, error: questionsError } = await supabase
     .from("multiple_choice_questions")
-    .select("id, question")
+    .select("id, question, generation_difficulty")
     .eq("study_set_id", studySetId)
     .order("id", { ascending: true });
 
@@ -255,6 +256,10 @@ export async function getStudySetDetail(studySetId: string) {
   }
 
   const studySetRow = studySetData as StudySetRow;
+  const { data: generationData, error: generationError } = await supabase
+    .from("generation_jobs").select("education_level, source")
+    .eq("study_set_id", studySetId).maybeSingle();
+  if (generationError) return { ok: false as const, status: 500, error: "No pudimos cargar la generación." };
   const detail: StudySetDetail = {
     ...toStudySetSummary(studySetRow),
     flashcards: ((flashcardsData ?? []) as FlashcardRow[]).map((card) => ({
@@ -265,8 +270,10 @@ export async function getStudySetDetail(studySetId: string) {
     multipleChoiceQuestions: questionRows.map((question) => ({
       id: question.id,
       question: question.question,
+      difficulty: question.generation_difficulty,
       options: optionsByQuestion.get(question.id) ?? [],
     })),
+    generation: generationData ? { level: generationData.education_level, source: generationData.source } : null,
   };
 
   return { ok: true as const, studySet: detail };

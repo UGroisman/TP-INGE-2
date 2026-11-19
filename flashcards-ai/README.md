@@ -84,6 +84,8 @@ Al arrancar, el worker muestra `Worker esperando trabajos en material-processing
 
 ## Guion de prueba
 
+Con sesión iniciada, la generación de flashcards y opción múltiple se envía a segundo plano. Se puede navegar mientras el worker procesa el pedido y consultar el estado y el set completo en **Study sets**. Las preguntas generadas se pueden practicar desde el set. Los trabajos fallidos se muestran en esa pantalla; se puede volver a solicitar la generación. Sin iniciar sesión, la generación general conserva su funcionamiento anterior y no se guarda automáticamente. Para usar esta función en la nube, hay que desplegar la versión actual tanto de la web como del worker y conectar ambos al mismo RabbitMQ y Supabase.
+
 Datos de prueba: [`samples/photosynthesis.txt`](samples/photosynthesis.txt), unos 1900 caracteres en inglés (el modelo de embeddings `gte-small` está orientado a inglés).
 
 1. **Registrar un usuario** en `/register`. Según la configuración de Supabase, puede ser necesario confirmar el email.

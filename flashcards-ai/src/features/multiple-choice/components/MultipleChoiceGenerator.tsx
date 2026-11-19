@@ -1,6 +1,8 @@
 "use client";
 
 import { useState } from "react";
+import Link from "next/link";
+import { startBackgroundGeneration } from "@/features/study-sets/services/generationJobs";
 import { MultipleChoiceDeck } from "@/features/multiple-choice/components/MultipleChoiceDeck";
 import { MultipleChoiceForm } from "@/features/multiple-choice/components/MultipleChoiceForm";
 import { generateMultipleChoiceQuestions } from "@/features/multiple-choice/services/multipleChoice";
@@ -22,6 +24,7 @@ export function MultipleChoiceGenerator({ initialTopic, initialLevel }: { initia
   const [deckVersion, setDeckVersion] = useState(0);
   const [trackingEnabled, setTrackingEnabled] = useState(false);
   const [loading, setLoading] = useState(false);
+  const [queued, setQueued] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
   async function handleGenerate(
@@ -30,10 +33,16 @@ export function MultipleChoiceGenerator({ initialTopic, initialLevel }: { initia
     count: QuestionCount,
   ) {
     setLoading(true);
+    setQueued(false);
     setError(null);
     setLastRequest({ topic, level, count });
 
     try {
+      if (await startBackgroundGeneration({ kind: "multiple_choice", topic, level, count })) {
+        setQuestions([]);
+        setQueued(true);
+        return;
+      }
       const result = await generateMultipleChoiceQuestions(
         topic,
         level,
@@ -91,6 +100,8 @@ export function MultipleChoiceGenerator({ initialTopic, initialLevel }: { initia
   return (
     <>
       <MultipleChoiceForm loading={loading} onGenerate={handleGenerate} initialTopic={initialTopic} initialLevel={initialLevel} />
+
+      {queued ? <p role="status" className="mt-8 w-full max-w-2xl rounded-lg bg-teal-50 p-4 text-teal-900">Generación en curso. Podés seguir usando la aplicación y consultar el resultado en <Link className="font-semibold underline" href="/study-sets">tus study sets</Link>.</p> : null}
 
       {loading ? (
         <div

@@ -1,6 +1,8 @@
 "use client";
 
 import { useState } from "react";
+import Link from "next/link";
+import { startBackgroundGeneration } from "@/features/study-sets/services/generationJobs";
 import { FlashcardDeck } from "@/features/flashcards/components/FlashcardDeck";
 import { TopicForm } from "@/features/flashcards/components/TopicForm";
 import { generateFlashcards } from "@/features/flashcards/services/flashcards";
@@ -16,14 +18,21 @@ export function FlashcardGenerator() {
   } | null>(null);
   const [deckVersion, setDeckVersion] = useState(0);
   const [loading, setLoading] = useState(false);
+  const [queued, setQueued] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
   async function handleGenerate(topic: string, level: EducationLevel) {
     setLoading(true);
+    setQueued(false);
     setError(null);
     setLastRequest({ topic, level });
 
     try {
+      if (await startBackgroundGeneration({ kind: "flashcards", topic, level })) {
+        setFlashcards([]);
+        setQueued(true);
+        return;
+      }
       const cards = await generateFlashcards(topic, level);
 
       setFlashcards(cards);
@@ -51,6 +60,8 @@ export function FlashcardGenerator() {
   return (
     <>
       <TopicForm loading={loading} onGenerate={handleGenerate} />
+
+      {queued ? <p role="status" className="mt-8 w-full max-w-2xl rounded-lg bg-teal-50 p-4 text-teal-900">Generación en curso. Podés seguir usando la aplicación y consultar el resultado en <Link className="font-semibold underline" href="/study-sets">tus study sets</Link>.</p> : null}
 
       {loading ? (
         <div

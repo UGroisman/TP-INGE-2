@@ -2,6 +2,8 @@ import amqp from "amqplib";
 import { createServer } from "node:http";
 import { createClient } from "@supabase/supabase-js";
 import { parseStarterCards, splitMaterial } from "./processing.mjs";
+import { generateStudyItems } from "./generation.mjs";
+import { assertGenerationTopology, GENERATION_QUEUE, GENERATION_DLQ, publishGeneration } from "./generation-queue.mjs";
 import {
   AUDIT_QUEUE,
   DEAD_LETTER_QUEUE,
@@ -37,6 +39,7 @@ connection.on("error", () => { ready = false; });
 connection.on("close", () => { ready = false; process.exit(1); });
 const channel = await connection.createConfirmChannel();
 await assertWorkerTopology(channel);
+await assertGenerationTopology(channel);
 await channel.prefetch(1);
 
 // Segundo suscriptor del exchange: recibe todos los eventos material.* por su
@@ -87,6 +90,66 @@ async function generateStarterCards(chunks) {
 
 console.log(`Worker esperando trabajos en ${PROCESSING_QUEUE}`);
 ready = true;
+// El barrido recupera solicitudes persistidas si el productor se cae antes de
+// publicar y trabajos abandonados por un worker que terminó inesperadamente.
+async function recoverGenerations() {
+  try {
+    const stale = new Date(Date.now() - 10 * 60 * 1000).toISOString();
+    const recovered = await db.from('generation_jobs').update({ status: 'queued', updated_at: new Date().toISOString() }).eq('status', 'processing').lt('updated_at', stale);
+    if (recovered.error) throw recovered.error;
+    const pending = await db.from('generation_jobs').select('id').eq('status', 'queued').order('created_at').limit(100);
+    if (pending.error) throw pending.error;
+    for (const job of pending.data ?? []) publishGeneration(channel, job.id);
+    if (pending.data?.length) await channel.waitForConfirms();
+  } catch {
+    console.error('No se pudieron recuperar generaciones pendientes');
+  }
+}
+await recoverGenerations();
+setInterval(() => { void recoverGenerations(); }, 60000).unref();
+
+await channel.consume(GENERATION_QUEUE, async (message) => {
+  if (!message) return;
+  let jobId;
+  let job;
+  try {
+    jobId = JSON.parse(message.content.toString()).jobId;
+    if (typeof jobId !== 'string' || !/^[0-9a-f-]{36}$/i.test(jobId)) throw new Error('Mensaje inválido');
+    const current = await db.from('generation_jobs').select('*').eq('id', jobId).maybeSingle();
+    if (current.error) throw current.error;
+    if (!current.data || current.data.status !== 'queued') { channel.ack(message); return; }
+    const claimed = await db.from('generation_jobs').update({ status: 'processing', attempts: current.data.attempts + 1, updated_at: new Date().toISOString(), error: null }).eq('id', jobId).eq('status', 'queued').select('*').maybeSingle();
+    if (claimed.error) throw claimed.error;
+    if (!claimed.data) { channel.ack(message); return; }
+    job = claimed.data;
+    const items = await generateStudyItems(job, gatewayKey);
+    const completed = await db.rpc('complete_generation_job', { p_job_id: jobId, p_items: items });
+    if (completed.error) throw completed.error;
+    channel.ack(message);
+    console.log(`Generación ${jobId} guardada`);
+  } catch (error) {
+    const reason = error instanceof Error && /^(AI Gateway HTTP \d+|La IA no devolvió contenido válido|Falta configurar AI_GATEWAY_API_KEY|Trabajo inválido)$/.test(error.message) ? error.message : "error de conexión o persistencia";
+    console.error(`Falló generación ${jobId ?? 'inválida'}: ${reason}`);
+    try {
+      if (!jobId || !job) {
+        if (!jobId) { channel.sendToQueue(GENERATION_DLQ, message.content, { persistent: true }); await channel.waitForConfirms(); channel.ack(message); }
+        else channel.nack(message, false, true);
+        return;
+      }
+      const failed = job.attempts >= MAX_ATTEMPTS;
+      const saved = await db.from('generation_jobs').update({ status: failed ? 'failed' : 'queued', error: failed ? 'No pudimos generar el contenido. Intentá nuevamente.' : null, updated_at: new Date().toISOString() }).eq('id', jobId).eq('status', 'processing');
+      if (saved.error) throw saved.error;
+      if (failed) channel.sendToQueue(GENERATION_DLQ, message.content, { persistent: true });
+      else publishGeneration(channel, jobId);
+      await channel.waitForConfirms();
+      channel.ack(message);
+    } catch {
+      console.error(`No se pudo recuperar generación ${jobId ?? 'inválida'}`);
+      channel.nack(message, false, true);
+    }
+  }
+});
+
 await channel.consume(PROCESSING_QUEUE, async (message) => {
   if (!message) return;
   let jobId;

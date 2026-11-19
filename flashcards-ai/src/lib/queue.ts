@@ -1,5 +1,6 @@
 import "server-only";
 import amqp from "amqplib";
+import { assertGenerationTopology, publishGeneration } from "../../worker/generation-queue.mjs";
 import {
   EVENT_TYPES,
   assertProcessingTopology,
@@ -18,6 +19,19 @@ export async function enqueueMaterial(jobId: string, documentId: string) {
     const channel = await connection.createConfirmChannel();
     await assertProcessingTopology(channel);
     publishMaterialEvent(channel, createMaterialEvent(EVENT_TYPES.uploaded, { jobId, documentId }));
+    await channel.waitForConfirms();
+    await channel.close();
+  } finally {
+    await connection.close();
+  }
+}
+
+export async function enqueueGeneration(jobId: string) {
+  const connection = await amqp.connect(process.env.RABBITMQ_URL ?? "amqp://localhost:5672");
+  try {
+    const channel = await connection.createConfirmChannel();
+    await assertGenerationTopology(channel);
+    publishGeneration(channel, jobId);
     await channel.waitForConfirms();
     await channel.close();
   } finally {

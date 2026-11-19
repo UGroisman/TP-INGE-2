@@ -1,6 +1,8 @@
 "use client";
 
 import { FormEvent, useState } from "react";
+import Link from "next/link";
+import { startBackgroundGeneration } from "@/features/study-sets/services/generationJobs";
 import { MultipleChoiceDeck } from "@/features/multiple-choice/components/MultipleChoiceDeck";
 import {
   questionCounts,
@@ -42,6 +44,7 @@ export function RagMultipleChoiceGenerator() {
   const [deckVersion, setDeckVersion] = useState(0);
   const [trackingEnabled, setTrackingEnabled] = useState(false);
   const [loading, setLoading] = useState(false);
+  const [queued, setQueued] = useState(false);
   const [validationError, setValidationError] = useState<string | null>(null);
   const [requestError, setRequestError] = useState<string | null>(null);
 
@@ -84,10 +87,16 @@ export function RagMultipleChoiceGenerator() {
 
   async function handleGenerate(request: RagMultipleChoiceRequestState) {
     setLoading(true);
+    setQueued(false);
     setRequestError(null);
     setLastRequest(request);
 
     try {
+      if (await startBackgroundGeneration({ kind: "multiple_choice", ...request })) {
+        setQuestions([]);
+        setQueued(true);
+        return;
+      }
       const result = await generateRagMultipleChoice(
         request.topic,
         request.level,
@@ -228,6 +237,8 @@ export function RagMultipleChoiceGenerator() {
           {loading ? "Generando..." : "Generar preguntas con RAG"}
         </button>
       </form>
+
+      {queued ? <p role="status" className="mt-8 w-full max-w-2xl rounded-lg bg-teal-50 p-4 text-teal-900">Generación en curso. Podés seguir usando la aplicación y consultar el resultado en <Link className="font-semibold underline" href="/study-sets">tus study sets</Link>.</p> : null}
 
       {loading ? (
         <div

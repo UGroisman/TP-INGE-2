@@ -152,15 +152,6 @@ export function AppSidebar() {
           ))}
         </nav>
 
-        <div className="mt-auto rounded-lg border border-white/10 bg-white/[0.04] p-4">
-          <p className="font-mono text-[0.65rem] uppercase tracking-[0.14em] text-zinc-500">
-            Procesamiento
-          </p>
-          <p className="mt-2 text-sm leading-6 text-zinc-300">
-            Tus materiales se indexan en segundo plano mediante una cola de
-            RabbitMQ.
-          </p>
-        </div>
       </aside>
     </>
   );

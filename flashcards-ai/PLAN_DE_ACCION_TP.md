@@ -7,6 +7,7 @@
 
 ### Avance de implementacion
 
+- Generacion en segundo plano: usuarios autenticados pueden solicitar flashcards y multiple choice como trabajos persistentes, con RabbitMQ, reintentos, recuperacion de trabajos abandonados y guardado automatico en study sets. Se probaron ambos tipos, normales y RAG, por la API y el worker local con usuarios temporales; tambien se verifico el aislamiento entre dos usuarios. Falta verificar navegacion real en el navegador y recuperacion ante caidas. El codigo nuevo debe desplegarse en web y worker cloud antes de usarlo alli.
 - 18/11: RabbitMQ pasa a pub/sub con exchange `topic` `materials.events` (`material.uploaded`, `material.ready`, `material.failed`), cola de trabajo, suscriptor de auditoria y DLQ; topologia en `worker/events.mjs` con tests. Las tarjetas iniciales son opcionales: sin clave de IA el material se indexa igual. Se restauro `.env.example`, Compose acepta `.env`, se agregaron datos de prueba (`samples/`), README operativo, paso a paso de Render y white paper final. Rediseño visual de la web sin funcionalidades nuevas.
 
 - Temas a reforzar: implementada la consulta protegida por RLS, la priorizacion, los estados y el enlace a practica con tema y nivel precargados. Las pruebas unitarias cubren el orden y los umbrales; falta verificar el recorrido completo con dos temas y usuarios reales o temporales.
