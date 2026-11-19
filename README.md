@@ -38,3 +38,4 @@ flashcards-ai/
 └── Dockerfile
 render.yaml               Blueprint del worker para Render
 ```
+
